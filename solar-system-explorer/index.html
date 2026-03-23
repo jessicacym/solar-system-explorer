@@ -142,10 +142,14 @@
       </p>
     </aside>
 
-    <!-- Recalculate button (visible after initial setup) -->
-    <button class="recalc-btn" id="recalc-btn" style="display: none">
-      Settings
-    </button>
+    <!-- Bottom bar: refresh badge + settings button -->
+    <div class="bottom-bar" id="bottom-bar" style="display: none">
+      <div class="refresh-badge">
+        <span class="refresh-dot"></span>
+        <span id="refresh-label">Updated just now</span>
+      </div>
+      <button class="recalc-btn" id="recalc-btn">Settings</button>
+    </div>
 
     <script src="planets.js?v=7"></script>
     <script src="particle-sphere.js?v=7"></script>

@@ -409,6 +409,10 @@ function openDetailPanel(planet) {
       <span class="detail-item-label">Known Moons</span>
       <span class="detail-item-value">${planet.moonCount !== undefined ? planet.moonCount + " moon" + (planet.moonCount !== 1 ? "s" : "") : "N/A"}</span>
     </div>
+    <div class="detail-item" style="border-color: rgba(255,255,255,0.05);">
+      <span class="detail-item-label">Data Source</span>
+      <span class="detail-item-value" style="font-size:11px; color: var(--text-dim);">${planet._source === "API" ? "Le Système Solaire API (live)" : "Static fallback data"} + NASA Horizons</span>
+    </div>
   `;
 
   detailPanel.hidden = false;
@@ -438,73 +442,62 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// ─── NASA JPL Horizons API ───
-// Primary URL; if CORS blocks it, try public proxies as fallback
-const HORIZONS_API = "https://ssd.jpl.nasa.gov/api/horizons.api";
-const CORS_PROXIES = [
-  "",                                          // Direct (works in some browsers/contexts)
-  "https://corsproxy.io/?",                    // Popular CORS proxy
-  "https://api.allorigins.win/raw?url=",       // allorigins
-];
+// ─── NASA JPL Horizons API (via Vercel proxy) ───
+// On Vercel: calls /api/horizons (serverless function, no CORS)
+// On localhost: calls NASA directly (may need browser CORS extension)
+const IS_LOCAL = window.location.hostname === "127.0.0.1"
+  || window.location.hostname === "localhost";
 
-async function fetchWithCorsRetry(url) {
-  for (const proxy of CORS_PROXIES) {
-    try {
-      const fetchUrl = proxy ? proxy + encodeURIComponent(url) : url;
-      const resp = await fetch(fetchUrl);
-      if (!resp.ok) continue;
-      return await resp.json();
-    } catch (e) {
-      continue; // Try next proxy
-    }
-  }
-  throw new Error("All fetch attempts failed (CORS)");
-}
+const HORIZONS_API = IS_LOCAL
+  ? "https://ssd.jpl.nasa.gov/api/horizons.api"  // direct (local dev)
+  : "/api/horizons";                              // Vercel proxy (production)
+
 const HORIZONS_CODES = {
   mercury: "199", venus: "299", earth: "399",
   mars: "499", jupiter: "599", saturn: "699",
   uranus: "799", neptune: "899",
 };
 
-// Fetch RA, DEC, AZ, ALT, and distance for one planet from a given observer
 async function fetchHorizonsData(planetId, lat, lon, elev, datetime) {
   if (planetId === "earth") {
     return { ra: "—", dec: "—", az: "—", alt: "—", distEarthAU: 0, distEarthKm: 0 };
   }
+
   const code = HORIZONS_CODES[planetId];
-  const startTime = datetime; // e.g. "2026-03-23 06:17"
-  // Compute stop time = start + 1 day
   const startDate = new Date(datetime.replace(" ", "T") + "Z");
-  const stopDate = new Date(startDate.getTime() + 86400000);
-  const stopTime = stopDate.toISOString().slice(0, 10);
+  const stopDate  = new Date(startDate.getTime() + 86400000);
+  const stopTime  = stopDate.toISOString().slice(0, 10);
+  const elevKm    = (elev / 1000).toFixed(3);
 
-  // QUANTITIES: 1=RA/DEC, 4=AZ/EL, 20=range(delta)
-  const elevKm = (elev / 1000).toFixed(3);
-  const url = `${HORIZONS_API}?format=json`
-    + `&COMMAND='${code}'`
-    + `&CENTER='coord@399'`
-    + `&COORD_TYPE='GEODETIC'`
-    + `&SITE_COORD='${lon},${lat},${elevKm}'`
-    + `&EPHEM_TYPE='OBSERVER'`
-    + `&START_TIME='${startTime}'`
-    + `&STOP_TIME='${stopTime}'`
-    + `&STEP_SIZE='1 d'`
-    + `&QUANTITIES='1,4,20'`
-    + `&MAKE_EPHEM='YES'`;
+  const params = new URLSearchParams({
+    format:     "json",
+    COMMAND:    `'${code}'`,
+    CENTER:     "'coord@399'",
+    COORD_TYPE: "'GEODETIC'",
+    SITE_COORD: `'${lon},${lat},${elevKm}'`,
+    EPHEM_TYPE: "'OBSERVER'",
+    START_TIME: `'${datetime}'`,
+    STOP_TIME:  `'${stopTime}'`,
+    STEP_SIZE:  "'1 d'",
+    QUANTITIES: "'1,4,20'",
+    MAKE_EPHEM: "'YES'",
+  });
 
-  const data = await fetchWithCorsRetry(url);
-  const text = data.result;
-  const soe = text.indexOf("$$SOE");
-  const eoe = text.indexOf("$$EOE");
+  const response = await fetch(`${HORIZONS_API}?${params.toString()}`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+  const data  = await response.json();
+  const text  = data.result;
+  const soe   = text.indexOf("$$SOE");
+  const eoe   = text.indexOf("$$EOE");
   if (soe === -1) throw new Error("No ephemeris data for " + planetId);
 
-  const line = text.substring(soe + 5, eoe).trim().split("\n")[0].trim();
-  // Parse: Date HR:MN  RA(h m s) DEC(d m s) AZ EL delta deldot
+  const line  = text.substring(soe + 5, eoe).trim().split("\n")[0].trim();
   const parts = line.split(/\s+/);
-  // parts[0]=date, [1]=time, [2..4]=RA(h m s), [5..7]=DEC(d m s), [8]=AZ, [9]=EL, [10]=delta, [11]=deldot
-  const ra = `${parts[2]} ${parts[3]} ${parts[4]}`;
+
+  const ra  = `${parts[2]} ${parts[3]} ${parts[4]}`;
   const dec = `${parts[5]} ${parts[6]} ${parts[7]}`;
-  const az = parseFloat(parts[8]).toFixed(4) + "°";
+  const az  = parseFloat(parts[8]).toFixed(4) + "°";
   const alt = parseFloat(parts[9]).toFixed(4) + "°";
   const deltaAU = parseFloat(parts[10]);
 
@@ -515,12 +508,31 @@ async function fetchHorizonsData(planetId, lat, lon, elev, datetime) {
   };
 }
 
-// ─── Build planet data from static + Horizons live data ───
+// ─── Load physical data: planets-api.json (API) → PLANET_STATIC_DATA (fallback) ───
+let apiPlanetCache = null; // cached API data from planets-api.json
+
+async function loadApiPlanetData() {
+  if (apiPlanetCache) return apiPlanetCache;
+  try {
+    const resp = await fetch("planets-api.json");
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    apiPlanetCache = data.planets;
+    console.log(`Loaded API planet data (fetched at ${data._fetchedAt})`);
+    return apiPlanetCache;
+  } catch (err) {
+    console.warn("planets-api.json not available, using static fallback:", err.message);
+    return null;
+  }
+}
+
+// ─── Build planet data from API JSON + Horizons live data ───
 async function fetchAllData(lat, lon, elev, zone, datetime) {
-  // 1. Static physical data (always available)
+  // 1. Physical data: try API JSON first, fallback to static
+  const apiData = await loadApiPlanetData();
   planetData = PLANET_IDS.map((id, i) => {
     const config = PLANET_CONFIG[i];
-    const d = PLANET_STATIC_DATA[id] || {};
+    const d = (apiData && apiData[id]) ? apiData[id] : (PLANET_STATIC_DATA[id] || {});
     return {
       ...config,
       distanceKm:     d.semimajorAxis || 0,
@@ -535,6 +547,7 @@ async function fetchAllData(lat, lon, elev, zone, datetime) {
       moonCount:      d.moons?.length || 0,
       distEarthAU:    null,
       distEarthKm:    null,
+      _source:        (apiData && apiData[id]) ? "API" : "static",
     };
   });
 
@@ -566,6 +579,11 @@ const btnNow = document.getElementById("btn-now");
 const btnLocate = document.getElementById("btn-locate");
 const btnCalculate = document.getElementById("btn-calculate");
 const recalcBtn = document.getElementById("recalc-btn");
+const bottomBar = document.getElementById("bottom-bar");
+const refreshLabel = document.getElementById("refresh-label");
+const REFRESH_INTERVAL_MS = 15000;
+let refreshTimerId = null;
+let refreshCounterId = null;
 
 // "Now" button — fill current UTC datetime
 btnNow.addEventListener("click", () => {
@@ -604,6 +622,48 @@ btnLocate.addEventListener("click", () => {
   );
 });
 
+// ─── "Last updated X seconds ago" counter ───
+function updateRefreshLabel() {
+  if (!lastFetchTime) return;
+  const sec = Math.floor((Date.now() - lastFetchTime) / 1000);
+  if (sec < 5) refreshLabel.textContent = "Updated just now";
+  else if (sec < 60) refreshLabel.textContent = `Updated ${sec}s ago`;
+  else refreshLabel.textContent = `Updated ${Math.floor(sec / 60)}m ${sec % 60}s ago`;
+}
+
+// ─── Auto-refresh: re-fetch every 60s with current settings ───
+async function autoRefresh() {
+  if (!observerSettings) return;
+  const { lat, lon, elev, zone } = observerSettings;
+  // Use current real time for refresh (not the original form time)
+  const now = new Date();
+  const datetime = now.toISOString().slice(0, 19);
+  try {
+    await fetchAllData(lat, lon, elev, zone, datetime);
+    console.log("Auto-refresh complete");
+  } catch (err) {
+    console.warn("Auto-refresh failed:", err.message);
+  }
+}
+
+function startRefreshCycle() {
+  // Clear previous timers
+  if (refreshTimerId) clearInterval(refreshTimerId);
+  if (refreshCounterId) clearInterval(refreshCounterId);
+  // Update label every second
+  refreshCounterId = setInterval(updateRefreshLabel, 1000);
+  // Re-fetch API every 60 seconds
+  refreshTimerId = setInterval(autoRefresh, REFRESH_INTERVAL_MS);
+}
+
+// ─── Show galaxy view (called after successful data load) ───
+function showGalaxyView() {
+  settingsOverlay.classList.add("hidden");
+  spheresContainer.style.display = "";
+  bottomBar.style.display = "";
+  startRefreshCycle();
+}
+
 // Form submit — calculate positions
 settingsForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -612,7 +672,6 @@ settingsForm.addEventListener("submit", async (e) => {
   const elev = parseInt(document.getElementById("obs-elev").value);
   const zone = parseInt(document.getElementById("obs-zone").value);
   const datetimeRaw = document.getElementById("obs-datetime").value;
-  // Convert to ISO 8601: yyyy-MM-ddThh:mm:ss
   const datetime = datetimeRaw.length === 16 ? datetimeRaw + ":00" : datetimeRaw;
 
   observerSettings = { lat, lon, elev, zone, datetime };
@@ -623,7 +682,6 @@ settingsForm.addEventListener("submit", async (e) => {
   btnCalculate.textContent = "Loading...";
 
   try {
-    // Fetch all data from NASA Horizons
     await fetchAllData(lat, lon, elev, zone, datetime);
 
     const hasPositions = Object.keys(positionData).length > 0;
@@ -632,21 +690,11 @@ settingsForm.addEventListener("submit", async (e) => {
       : "Positions unavailable (CORS). Showing physical data only.";
     settingsStatus.className = hasPositions ? "settings-status success" : "settings-status";
 
-    // Hide overlay, show planets (always proceed even if positions failed)
-    setTimeout(() => {
-      settingsOverlay.classList.add("hidden");
-      spheresContainer.style.display = "";
-      recalcBtn.style.display = "";
-    }, 500);
+    setTimeout(showGalaxyView, 500);
   } catch (err) {
-    // Even on total failure, show with static data
     settingsStatus.textContent = "API error — showing cached data. " + err.message;
     settingsStatus.className = "settings-status error";
-    setTimeout(() => {
-      settingsOverlay.classList.add("hidden");
-      spheresContainer.style.display = "";
-      recalcBtn.style.display = "";
-    }, 1500);
+    setTimeout(showGalaxyView, 1500);
   }
 
   btnCalculate.disabled = false;
@@ -664,7 +712,6 @@ function init() {
   buildGalaxyLayers();
   createPlanetSpheres();
   requestAnimationFrame(drawGalaxy);
-  // Pre-fill "Now" on load
   btnNow.click();
 }
 
