@@ -1,141 +1,143 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Solar System Explorer</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Solar System Explorer</title>
 
-  <!-- Google Fonts: Orbitron (display) + Share Tech Mono (data) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
 
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
+    <link rel="stylesheet" href="style.css?v=4" />
+  </head>
+  <body>
+    <!-- Fixed galaxy canvas — always behind everything -->
+    <canvas id="galaxy-canvas"></canvas>
 
-  <!-- ═══════════════════════════════════════════
-       HEADER
-  ═══════════════════════════════════════════ -->
-  <header class="site-header">
-    <div class="header-left">
-      <h1 class="site-title">Solar System <span class="accent">Explorer</span></h1>
-      <p class="site-subtitle">Real-time planetary data · Le Système Solaire API</p>
-    </div>
-    <div class="header-right">
-      <div class="refresh-badge">
-        <span class="refresh-dot"></span>
-        <span id="refresh-label">Fetching data...</span>
-      </div>
-    </div>
-  </header>
+    <!-- Planet spheres — positioned over canvas by JS -->
+    <div class="planet-spheres" id="planet-spheres"></div>
 
-  <!-- ═══════════════════════════════════════════
-       MAIN CONTENT
-  ═══════════════════════════════════════════ -->
-  <main class="main-layout">
-
-    <!-- Canvas: orbital animation -->
-    <section class="canvas-section">
-      <canvas id="solar-canvas"></canvas>
-      <div class="canvas-hint">Click any planet to explore its data</div>
-    </section>
-
-    <!-- Data panel: planet info -->
-    <aside class="data-panel" id="data-panel">
-      <!-- Default empty state -->
-      <div class="panel-empty" id="panel-empty">
-        <div class="empty-icon">🪐</div>
-        <p>Select a planet to view its data</p>
-      </div>
-
-      <!-- Planet data card (hidden until planet selected) -->
-      <div class="planet-card" id="planet-card" hidden>
-        <div class="card-header">
-          <div class="planet-dot" id="card-dot"></div>
-          <div>
-            <h2 class="planet-name" id="card-name"></h2>
-            <p class="planet-name-cn" id="card-name-cn"></p>
+    <!-- Fixed nav -->
+    <nav class="site-nav">
+      <div class="nav-inner">
+        <a href="#" class="nav-logo" id="nav-logo">Solar System Explorer</a>
+        <div class="nav-links">
+          <a href="#" data-section="0">Galaxy</a>
+          <a href="#" data-section="2">About</a>
+          <a href="#" data-section="3">Inner</a>
+          <a href="#" data-section="4">Giants</a>
+          <a href="#" data-section="5">Ice</a>
+        </div>
+        <div class="nav-secondary">
+          <div class="refresh-badge">
+            <span class="refresh-dot"></span>
+            <span id="refresh-label">Fetching data...</span>
           </div>
         </div>
-
-        <div class="data-grid">
-          <div class="data-item">
-            <span class="data-label">Distance from Sun</span>
-            <span class="data-value" id="d-distance"></span>
-          </div>
-          <div class="data-item">
-            <span class="data-label">Orbital Period</span>
-            <span class="data-value" id="d-orbit"></span>
-          </div>
-          <div class="data-item">
-            <span class="data-label">Rotation Period</span>
-            <span class="data-value" id="d-rotation"></span>
-          </div>
-          <div class="data-item">
-            <span class="data-label">Mean Radius</span>
-            <span class="data-value" id="d-radius"></span>
-          </div>
-          <div class="data-item">
-            <span class="data-label">Mass</span>
-            <span class="data-value" id="d-mass"></span>
-          </div>
-          <div class="data-item">
-            <span class="data-label">Avg Temperature</span>
-            <span class="data-value" id="d-temp"></span>
-          </div>
-          <div class="data-item">
-            <span class="data-label">Surface Gravity</span>
-            <span class="data-value" id="d-gravity"></span>
-          </div>
-          <div class="data-item">
-            <span class="data-label">Known Moons</span>
-            <span class="data-value" id="d-moons"></span>
-          </div>
-        </div>
-
-        <!-- Source attribution -->
-        <p class="data-source">
-          Data: <a href="https://api.le-systeme-solaire.net" target="_blank">Le Système Solaire API</a>
-        </p>
       </div>
+    </nav>
+
+    <!-- Scroll container with snap sections -->
+    <main class="scroll-container" id="scroll-container">
+      <!-- Section 0: Galaxy view (planets on spiral) -->
+      <section class="snap-section section-galaxy" id="section-galaxy">
+        <!-- planet spheres and canvas show through -->
+      </section>
+
+      <!-- Section 1: Hero text -->
+      <section class="snap-section section-hero" id="section-hero">
+        <div class="hero-content">
+          <h1 class="hero-title">
+            EIGHT WORLDS.<br />ONE STAR.<br />INFINITE WONDER.
+          </h1>
+        </div>
+      </section>
+
+      <!-- Section 2: About -->
+      <section class="snap-section section-about" id="section-about">
+        <div class="about-content">
+          <h2 class="about-heading">SOLAR SYSTEM<br />EXPLORER</h2>
+          <p class="about-desc">
+            Real-time planetary data visualization powered by Le Système Solaire
+            API. Explore eight worlds orbiting our Sun — from Mercury's scorched
+            plains to Neptune's frozen storms. Every data point updates live.
+          </p>
+          <nav class="about-links">
+            <a href="https://api.le-systeme-solaire.net" target="_blank">API</a>
+            <a href="#" data-section="0">EXPLORE</a>
+            <a href="#" data-section="3">DATA</a>
+          </nav>
+        </div>
+      </section>
+
+      <!-- Section 3: Inner Planets category -->
+      <section
+        class="snap-section section-category"
+        id="section-inner"
+        data-category="inner-planets"
+      >
+        <div class="category-content">
+          <h2 class="category-question category-question--inner">
+            What secrets do the<br />terrestrial worlds hold?
+          </h2>
+          <div class="category-planets" id="cat-planets-inner"></div>
+        </div>
+      </section>
+
+      <!-- Section 4: Gas Giants category -->
+      <section
+        class="snap-section section-category"
+        id="section-gas"
+        data-category="gas-giants"
+      >
+        <div class="category-content">
+          <h2 class="category-question category-question--gas">
+            What if entire worlds were<br />made of storms and clouds?
+          </h2>
+          <div class="category-planets" id="cat-planets-gas"></div>
+        </div>
+      </section>
+
+      <!-- Section 5: Ice Giants category -->
+      <section
+        class="snap-section section-category"
+        id="section-ice"
+        data-category="ice-giants"
+      >
+        <div class="category-content">
+          <h2 class="category-question category-question--ice">
+            What lies at the frozen edge<br />of our solar system?
+          </h2>
+          <div class="category-planets" id="cat-planets-ice"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Planet detail panel (slides in from right) -->
+    <aside class="detail-panel" id="detail-panel" hidden>
+      <button class="detail-close" id="detail-close">&times;</button>
+      <div class="detail-header">
+        <div class="detail-dot" id="detail-dot"></div>
+        <div>
+          <h3 class="detail-name" id="detail-name"></h3>
+          <p class="detail-cn" id="detail-cn"></p>
+          <p class="detail-tagline" id="detail-tagline"></p>
+        </div>
+      </div>
+      <div class="detail-grid" id="detail-grid"></div>
+      <p class="detail-source">
+        Data:
+        <a href="https://api.le-systeme-solaire.net" target="_blank"
+          >Le Système Solaire API</a
+        >
+      </p>
     </aside>
 
-  </main>
-
-  <!-- ═══════════════════════════════════════════
-       CONTROLS BAR
-  ═══════════════════════════════════════════ -->
-  <footer class="controls-bar">
-
-    <!-- Time speed slider -->
-    <div class="control-group">
-      <label class="control-label" for="speed-slider">⏱ Time Speed</label>
-      <input type="range" id="speed-slider" min="0" max="5" step="0.1" value="1" />
-      <span class="speed-value" id="speed-display">1×</span>
-    </div>
-
-    <!-- Planet filter tabs -->
-    <div class="control-group">
-      <label class="control-label">Filter</label>
-      <div class="filter-tabs">
-        <button class="tab active" data-filter="all">All</button>
-        <button class="tab" data-filter="inner">Inner (1–4)</button>
-        <button class="tab" data-filter="outer">Outer (5–8)</button>
-      </div>
-    </div>
-
-    <!-- Search -->
-    <div class="control-group">
-      <label class="control-label" for="planet-search">🔍 Search</label>
-      <input type="text" id="planet-search" placeholder="e.g. Mars" />
-    </div>
-
-  </footer>
-
-  <!-- Scripts -->
-  <script src="planets.js"></script>
-  <script src="main.js"></script>
-
-</body>
+    <script src="planets.js?v=4"></script>
+    <script src="main.js?v=4"></script>
+  </body>
 </html>
