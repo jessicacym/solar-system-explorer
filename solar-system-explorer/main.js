@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════
-// main.js — Solar System Explorer
-// BlueYard-inspired immersive galaxy with spiral particle cloud
+// main.js — Solar System Explorer (Homepage only)
+// Spiral galaxy with planets bound to arms
 // API: Le Système Solaire (https://api.le-systeme-solaire.net)
 // VDES39915 Project 2 | 2026
 // ═══════════════════════════════════════════
@@ -17,23 +17,19 @@ let planetData = [];
 let lastFetchTime = null;
 let spiralRotation = 0;
 let selectedPlanet = null;
-let currentSection = 0;
 
-// Pre-rendered layers (offscreen canvases for performance)
-let nebulaLayer = null;   // The dense spiral cloud
-let bgLayer = null;       // Background star field + colored dust
-let nebulaData = [];      // Particle positions for rotation
+// Pre-rendered layers
+let nebulaLayer = null;
+let bgLayer = null;
 
-// Active particle spheres (keyed by planetId)
+// Active particle spheres
 let activeParticleSpheres = {};
 let detailParticleSphere = null;
 
 // ─── DOM Refs ─────────────────────────────
 const canvas = document.getElementById("galaxy-canvas");
 const ctx = canvas.getContext("2d");
-const refreshLabel = document.getElementById("refresh-label");
 const spheresContainer = document.getElementById("planet-spheres");
-const scrollContainer = document.getElementById("scroll-container");
 const detailPanel = document.getElementById("detail-panel");
 
 // ─── Canvas Setup ─────────────────────────
@@ -47,30 +43,38 @@ window.addEventListener("resize", () => {
 });
 resizeCanvas();
 
+// ─── Spiral maxR: fit all planets on screen ───
+// The outermost planet (Neptune) has orbitScale=0.96.
+// Its spiral position must stay within the viewport with margin.
+// We compute maxR so that the furthest spiral point fits.
+function getMaxR() {
+  const W = canvas.width;
+  const H = canvas.height;
+  const margin = 100;
+  return ((Math.min(W, H) / 2 - margin) / 0.96) * 1.5;
+}
+
 // ─── Color utility ───────────────────────
 function pickColor(roll) {
-  if (roll < 0.35) return [210 + Math.random() * 30, 60 + Math.random() * 30, 55 + Math.random() * 30]; // blue
-  if (roll < 0.55) return [180 + Math.random() * 20, 60 + Math.random() * 30, 50 + Math.random() * 25]; // teal
-  if (roll < 0.72) return [255 + Math.random() * 30, 45 + Math.random() * 40, 40 + Math.random() * 25]; // purple
-  if (roll < 0.85) return [310 + Math.random() * 30, 50 + Math.random() * 40, 40 + Math.random() * 25]; // magenta
-  return [200 + Math.random() * 40, 8 + Math.random() * 12, 80 + Math.random() * 20]; // white star
+  if (roll < 0.35) return [210 + Math.random() * 30, 60 + Math.random() * 30, 55 + Math.random() * 30];
+  if (roll < 0.55) return [180 + Math.random() * 20, 60 + Math.random() * 30, 50 + Math.random() * 25];
+  if (roll < 0.72) return [255 + Math.random() * 30, 45 + Math.random() * 40, 40 + Math.random() * 25];
+  if (roll < 0.85) return [310 + Math.random() * 30, 50 + Math.random() * 40, 40 + Math.random() * 25];
+  return [200 + Math.random() * 40, 8 + Math.random() * 12, 80 + Math.random() * 20];
 }
 
 // ─── Build galaxy layers (offscreen) ─────
 function buildGalaxyLayers() {
   const W = canvas.width;
   const H = canvas.height;
-  const cx = W / 2;
-  const cy = H / 2;
-  const maxR = Math.min(W, H) * 0.88;
+  const maxR = getMaxR();
   const yScale = 0.48;
 
-  // ── 1. Background layer (stars + scattered colored dust) ──
+  // 1. Background layer
   const bgC = document.createElement("canvas");
   bgC.width = W; bgC.height = H;
   const bgCtx = bgC.getContext("2d");
 
-  // Tiny white stars
   for (let i = 0; i < 600; i++) {
     const x = Math.random() * W;
     const y = Math.random() * H;
@@ -82,12 +86,11 @@ function buildGalaxyLayers() {
     bgCtx.fill();
   }
 
-  // Scattered colorful dust (pink, teal, purple) — larger, softer blobs
   bgCtx.globalCompositeOperation = "lighter";
   for (let i = 0; i < 200; i++) {
     const x = Math.random() * W;
     const y = Math.random() * H;
-    const [h, s, l] = pickColor(Math.random() * 0.85 + 0.15); // skip white for dust
+    const [h, s, l] = pickColor(Math.random() * 0.85 + 0.15);
     const r = Math.random() * 4 + 1.5;
     const grad = bgCtx.createRadialGradient(x, y, 0, x, y, r * 2);
     grad.addColorStop(0, `hsla(${h},${s}%,${l}%,${Math.random() * 0.25 + 0.08})`);
@@ -98,7 +101,7 @@ function buildGalaxyLayers() {
   bgCtx.globalCompositeOperation = "source-over";
   bgLayer = bgC;
 
-  // ── 2. Nebula spiral layer (pre-rendered on a large square, rotated at draw time) ──
+  // 2. Nebula spiral layer
   const nebulaSize = Math.ceil(maxR * 2.6);
   const nC = document.createElement("canvas");
   nC.width = nebulaSize; nC.height = nebulaSize;
@@ -106,11 +109,8 @@ function buildGalaxyLayers() {
   const ncx = nebulaSize / 2;
   const ncy = nebulaSize / 2;
 
-  // Use additive blending for the luminous glow stacking
   nCtx.globalCompositeOperation = "lighter";
-
   const TOTAL = 18000;
-  nebulaData = [];
 
   for (let i = 0; i < TOTAL; i++) {
     const arm = Math.floor(Math.random() * SPIRAL_ARMS);
@@ -119,7 +119,6 @@ function buildGalaxyLayers() {
     const theta = t * SPIRAL_TURNS * Math.PI * 2 + armOffset;
     const r = t * maxR;
 
-    // Scatter — wider near the outer edge, tighter near center
     const scatterW = maxR * 0.25 * (0.2 + t * 0.8);
     const perpAngle = theta + Math.PI / 2;
     const scatter = (Math.random() - 0.5) * scatterW;
@@ -127,18 +126,15 @@ function buildGalaxyLayers() {
     let px = r * Math.cos(theta) + scatter * Math.cos(perpAngle);
     let py = (r * Math.sin(theta) + scatter * Math.sin(perpAngle)) * yScale;
 
-    // Dark center void: suppress particles close to the core
     const dist = Math.sqrt(px * px + py * py);
     const voidR = maxR * 0.07;
     if (dist < voidR && Math.random() > dist / voidR * 0.4) continue;
 
     const [h, s, l] = pickColor(Math.random());
     const size = Math.random() * 2.2 + 0.4;
-    // Brighter core particles, dimmer edges
     const densityFade = 1 - t * 0.3;
     const alpha = (Math.random() * 0.55 + 0.15) * densityFade;
 
-    // Draw soft glow blob (not hard circle)
     const sx = ncx + px;
     const sy = ncy + py;
     const glowR = size * 2.5;
@@ -149,7 +145,6 @@ function buildGalaxyLayers() {
     nCtx.fillStyle = grad;
     nCtx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
 
-    // Also draw a hard bright core for some particles (star effect)
     if (Math.random() < 0.3) {
       nCtx.beginPath();
       nCtx.arc(sx, sy, size * 0.5, 0, Math.PI * 2);
@@ -158,7 +153,6 @@ function buildGalaxyLayers() {
     }
   }
 
-  // Draw the dark void overlay on the nebula texture
   nCtx.globalCompositeOperation = "destination-out";
   const voidGrad = nCtx.createRadialGradient(ncx, ncy, 0, ncx, ncy, maxR * 0.12);
   voidGrad.addColorStop(0, "rgba(0,0,0,0.92)");
@@ -182,14 +176,12 @@ function drawGalaxy(time) {
   ctx.fillStyle = "rgba(9, 11, 17, 0.25)";
   ctx.fillRect(0, 0, W, H);
 
-  // 1. Background stars + dust (static)
   if (bgLayer) {
     ctx.globalAlpha = 0.7;
     ctx.drawImage(bgLayer, 0, 0);
     ctx.globalAlpha = 1;
   }
 
-  // 2. Ambient nebula glow (multiple layered radial gradients)
   const glowR = Math.min(W, H) * 0.4;
   const g1 = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
   g1.addColorStop(0, "rgba(40, 80, 180, 0.08)");
@@ -199,7 +191,6 @@ function drawGalaxy(time) {
   ctx.fillStyle = g1;
   ctx.fillRect(0, 0, W, H);
 
-  // 3. Rotating spiral nebula (pre-rendered texture)
   if (nebulaLayer) {
     spiralRotation += 0.00024;
     ctx.save();
@@ -211,7 +202,6 @@ function drawGalaxy(time) {
     ctx.restore();
   }
 
-  // 4. Center void darkening (on top of everything)
   const voidR = Math.min(W, H) * 0.05;
   const vg = ctx.createRadialGradient(cx, cy, 0, cx, cy, voidR * 3);
   vg.addColorStop(0, "rgba(9, 11, 17, 0.85)");
@@ -222,28 +212,24 @@ function drawGalaxy(time) {
   ctx.arc(cx, cy, voidR * 3, 0, Math.PI * 2);
   ctx.fill();
 
-  // Update planet positions to follow spiral rotation
   updatePlanetSpiralPositions();
-
   requestAnimationFrame(drawGalaxy);
 }
 
 // ─── Spiral position calculator ──────────
-// Place a planet on spiral arm 0 using its orbitScale as parameter t
 function getSpiralScreenPos(t, rotation) {
   const W = canvas.width;
   const H = canvas.height;
   const cx = W / 2;
   const cy = H / 2;
-  const maxR = Math.min(W, H) * 0.88;
+  const maxR = getMaxR();
   const yScale = 0.48;
 
   const theta = t * SPIRAL_TURNS * Math.PI * 2;
   const r = t * maxR;
-  let px = r * Math.cos(theta);
-  let py = (r * Math.sin(theta)) * yScale;
+  const px = r * Math.cos(theta);
+  const py = (r * Math.sin(theta)) * yScale;
 
-  // Apply the same rotation as the spiral texture
   const cos = Math.cos(rotation);
   const sin = Math.sin(rotation);
   const rx = px * cos - py * sin;
@@ -252,9 +238,8 @@ function getSpiralScreenPos(t, rotation) {
   return { x: cx + rx, y: cy + ry };
 }
 
-// ─── Update planet positions on spiral each frame ───
+// ─── Update planet positions each frame ───
 function updatePlanetSpiralPositions() {
-  if (currentSection > 1) return; // Only in galaxy/hero view
   PLANET_CONFIG.forEach(config => {
     const el = spheresContainer.querySelector(`[data-planet="${config.id}"]`);
     if (!el) return;
@@ -267,7 +252,6 @@ function updatePlanetSpiralPositions() {
 // ─── Planet Spheres (bound to spiral arms) ───
 function createPlanetSpheres() {
   spheresContainer.innerHTML = "";
-  // Destroy old particle spheres
   Object.values(activeParticleSpheres).forEach(s => s.destroy());
   activeParticleSpheres = {};
 
@@ -276,28 +260,24 @@ function createPlanetSpheres() {
     sphere.className = "planet-sphere";
     sphere.dataset.planet = config.id;
 
-    // Initial position on spiral
     const pos = getSpiralScreenPos(config.orbitScale, spiralRotation);
     sphere.style.left = pos.x + "px";
     sphere.style.top = pos.y + "px";
 
-    // Subtitle (category label)
     const subtitle = document.createElement("span");
     subtitle.className = "sphere-subtitle";
     subtitle.textContent = config.categoryLabel;
     sphere.appendChild(subtitle);
 
-    // Planet name
     const name = document.createElement("span");
     name.className = "sphere-name";
     name.textContent = config.nameEN;
     sphere.appendChild(name);
 
-    // Particle sphere canvas
     const ballWrap = document.createElement("div");
     ballWrap.className = "sphere-ball-wrap";
 
-    const sphereSize = 140;
+    const sphereSize = 105;
     const { canvas: pCanvas, sphere: pSphere } = createPlanetParticleSphere(config.id, sphereSize, {
       particleCount: 600,
       particleSize: 0.9,
@@ -314,8 +294,6 @@ function createPlanetSpheres() {
     });
 
     spheresContainer.appendChild(sphere);
-
-    // Start the particle animation
     pSphere.start();
     activeParticleSpheres[config.id] = pSphere;
   });
@@ -338,53 +316,15 @@ function darkenColor(hex, percent) {
   return `rgb(${r},${g},${b})`;
 }
 
-// ─── Scroll Handling ──────────────────────
-scrollContainer.addEventListener("scroll", () => {
-  const scrollTop = scrollContainer.scrollTop;
-  const sectionHeight = window.innerHeight;
-  currentSection = Math.round(scrollTop / sectionHeight);
-
-  // Fade galaxy elements based on scroll
-  const galaxyOpacity = Math.max(0, 1 - scrollTop / sectionHeight * 0.8);
-  const showGalaxy = currentSection <= 1;
-
-  spheresContainer.style.opacity = showGalaxy ? galaxyOpacity : 0;
-  spheresContainer.style.pointerEvents = showGalaxy ? "" : "none";
-
-  // Canvas fade for category sections
-  canvas.style.opacity = currentSection >= 2 ? 0.3 : 1;
-
-  // Update nav active state
-  document.querySelectorAll(".nav-links a").forEach(a => a.classList.remove("active"));
-  const activeLink = document.querySelector(`.nav-links a[data-section="${currentSection}"]`);
-  if (activeLink) activeLink.classList.add("active");
-});
-
-// Nav link clicks
-document.querySelectorAll(".nav-links a[data-section], .about-links a[data-section]").forEach(a => {
-  a.addEventListener("click", (e) => {
-    e.preventDefault();
-    const idx = parseInt(a.dataset.section);
-    scrollContainer.scrollTo({ top: idx * window.innerHeight, behavior: "smooth" });
-  });
-});
-
-document.getElementById("nav-logo").addEventListener("click", (e) => {
-  e.preventDefault();
-  scrollContainer.scrollTo({ top: 0, behavior: "smooth" });
-});
-
 // ─── Detail Panel ─────────────────────────
 function openDetailPanel(planet) {
   selectedPlanet = planet.id;
 
-  // Destroy previous detail particle sphere
   if (detailParticleSphere) {
     detailParticleSphere.destroy();
     detailParticleSphere = null;
   }
 
-  // Create particle sphere for detail panel header
   const detailDotContainer = document.getElementById("detail-dot");
   detailDotContainer.innerHTML = "";
   const detailSize = 96;
@@ -438,7 +378,6 @@ function openDetailPanel(planet) {
   `;
 
   detailPanel.hidden = false;
-  // Trigger reflow then add class for animation
   detailPanel.offsetHeight;
   detailPanel.classList.add("open");
 }
@@ -457,69 +396,17 @@ function closeDetailPanel() {
 
 document.getElementById("detail-close").addEventListener("click", closeDetailPanel);
 
-// Close panel when clicking outside
 document.addEventListener("click", (e) => {
   if (detailPanel.classList.contains("open") &&
       !detailPanel.contains(e.target) &&
-      !e.target.closest(".planet-sphere") &&
-      !e.target.closest(".cat-planet-item")) {
+      !e.target.closest(".planet-sphere")) {
     closeDetailPanel();
   }
 });
 
-// ─── Category Section Planets ─────────────
-function renderCategoryPlanets() {
-  const mapping = {
-    "inner-planets": "cat-planets-inner",
-    "gas-giants": "cat-planets-gas",
-    "ice-giants": "cat-planets-ice",
-  };
-
-  CATEGORIES.forEach(cat => {
-    const container = document.getElementById(mapping[cat.id]);
-    if (!container) return;
-    container.innerHTML = "";
-
-    cat.planetIds.forEach(planetId => {
-      const planet = planetData.find(p => p.id === planetId);
-      if (!planet) return;
-
-      const item = document.createElement("div");
-      item.className = "cat-planet-item";
-
-      // Create particle sphere for category dot
-      const dotSize = 88;
-      const { canvas: dotCanvas, sphere: dotSphere } = createPlanetParticleSphere(planetId, dotSize, {
-        particleCount: 400,
-        particleSize: 0.7,
-        glowIntensity: 0.45,
-      });
-      dotCanvas.classList.add("cat-planet-dot");
-
-      const info = document.createElement("div");
-      info.className = "cat-planet-info";
-      info.innerHTML = `
-        <span class="cat-planet-name">${planet.nameEN}</span>
-        <span class="cat-planet-sub">${planet.distanceAU} AU · ${UNITS.formatPeriod(planet.orbitalPeriod)}</span>
-      `;
-
-      item.appendChild(dotCanvas);
-      item.appendChild(info);
-      item.addEventListener("click", () => openDetailPanel(planet));
-      container.appendChild(item);
-
-      dotSphere.start();
-      // Store with a prefixed key so they don't conflict with galaxy spheres
-      activeParticleSpheres["cat-" + planetId] = dotSphere;
-    });
-  });
-}
-
 // ─── API Fetch ────────────────────────────
 async function fetchPlanetData() {
   try {
-    refreshLabel.textContent = "Fetching...";
-
     const responses = await Promise.all(
       PLANET_IDS.map(id => fetch(`${API_BASE}${id}`).then(r => r.json()))
     );
@@ -542,35 +429,20 @@ async function fetchPlanetData() {
     });
 
     lastFetchTime = Date.now();
-    updateRefreshLabel();
     console.log("Planet data fetched:", planetData);
-
   } catch (err) {
     console.error("API fetch failed:", err);
-    refreshLabel.textContent = "Fetch failed — retrying...";
   }
 }
 
-function updateRefreshLabel() {
-  if (!lastFetchTime) return;
-  const sec = Math.floor((Date.now() - lastFetchTime) / 1000);
-  refreshLabel.textContent = `Updated ${sec}s ago`;
-}
-
-setInterval(updateRefreshLabel, 1000);
-setInterval(async () => {
-  await fetchPlanetData();
-  renderCategoryPlanets();
-}, REFRESH_INTERVAL_MS);
+setInterval(() => fetchPlanetData(), REFRESH_INTERVAL_MS);
 
 // ─── Init ─────────────────────────────────
 async function init() {
   buildGalaxyLayers();
   createPlanetSpheres();
   requestAnimationFrame(drawGalaxy);
-
   await fetchPlanetData();
-  renderCategoryPlanets();
 }
 
 init();
