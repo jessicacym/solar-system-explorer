@@ -6,9 +6,7 @@
 // ═══════════════════════════════════════════
 
 // ─── Constants ───────────────────────────
-const API_BASE = "https://api.le-systeme-solaire.net/rest/bodies/";
 const PLANET_IDS = ["mercury", "venus", "earth", "mars", "jupiter", "saturn", "uranus", "neptune"];
-const REFRESH_INTERVAL_MS = 60000;
 const SPIRAL_ARMS = 2;
 const SPIRAL_TURNS = 3.2;
 
@@ -17,6 +15,8 @@ let planetData = [];
 let lastFetchTime = null;
 let spiralRotation = 0;
 let selectedPlanet = null;
+let positionData = {};  // keyed by planet name (French→English mapped)
+let observerSettings = null; // { lat, lon, elev, zone, datetime }
 
 // Pre-rendered layers
 let nebulaLayer = null;
@@ -25,6 +25,7 @@ let bgLayer = null;
 // Active particle spheres
 let activeParticleSpheres = {};
 let detailParticleSphere = null;
+
 
 // ─── DOM Refs ─────────────────────────────
 const canvas = document.getElementById("galaxy-canvas");
@@ -341,8 +342,41 @@ function openDetailPanel(planet) {
   document.getElementById("detail-cn").textContent = planet.nameCN;
   document.getElementById("detail-tagline").textContent = planet.tagline || "";
 
+  // Format Earth distance
+  const earthDistText = planet.id === "earth"
+    ? "—"
+    : planet.distEarthAU
+      ? `${planet.distEarthAU} AU (${UNITS.formatNumber(planet.distEarthKm)} km)`
+      : "N/A";
+
+  // Position data from positions API
+  const pos = positionData[planet.id];
+  const posHTML = pos ? `
+    <div class="detail-item" style="border-color: rgba(130,80,255,0.3);">
+      <span class="detail-item-label">Right Ascension (RA)</span>
+      <span class="detail-item-value" style="color: #a07af0;">${pos.ra}</span>
+    </div>
+    <div class="detail-item" style="border-color: rgba(130,80,255,0.3);">
+      <span class="detail-item-label">Declination (DEC)</span>
+      <span class="detail-item-value" style="color: #a07af0;">${pos.dec}</span>
+    </div>
+    <div class="detail-item" style="border-color: rgba(130,80,255,0.3);">
+      <span class="detail-item-label">Azimuth (AZ)</span>
+      <span class="detail-item-value" style="color: #a07af0;">${pos.az}</span>
+    </div>
+    <div class="detail-item" style="border-color: rgba(130,80,255,0.3);">
+      <span class="detail-item-label">Altitude (ALT)</span>
+      <span class="detail-item-value" style="color: ${parseFloat(pos.alt) >= 0 ? '#4ade80' : '#e06030'};">${pos.alt}${parseFloat(pos.alt) >= 0 ? ' (visible)' : ' (below horizon)'}</span>
+    </div>
+  ` : '';
+
   const grid = document.getElementById("detail-grid");
   grid.innerHTML = `
+    <div class="detail-item" style="border-color: rgba(74,158,255,0.3);">
+      <span class="detail-item-label">Current Distance from Earth</span>
+      <span class="detail-item-value" style="color: #4a9eff;">${earthDistText}</span>
+    </div>
+    ${posHTML}
     <div class="detail-item">
       <span class="detail-item-label">Distance from Sun</span>
       <span class="detail-item-value">${planet.distanceAU || "—"} AU (${UNITS.formatNumber(planet.distanceKm)} km)</span>
@@ -404,45 +438,234 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// ─── API Fetch ────────────────────────────
-async function fetchPlanetData() {
-  try {
-    const responses = await Promise.all(
-      PLANET_IDS.map(id => fetch(`${API_BASE}${id}`).then(r => r.json()))
-    );
+// ─── NASA JPL Horizons API ───
+// Primary URL; if CORS blocks it, try public proxies as fallback
+const HORIZONS_API = "https://ssd.jpl.nasa.gov/api/horizons.api";
+const CORS_PROXIES = [
+  "",                                          // Direct (works in some browsers/contexts)
+  "https://corsproxy.io/?",                    // Popular CORS proxy
+  "https://api.allorigins.win/raw?url=",       // allorigins
+];
 
-    planetData = responses.map((apiData, i) => {
-      const config = PLANET_CONFIG[i];
-      return {
-        ...config,
-        distanceKm:     apiData.semimajorAxis || 0,
-        distanceAU:     UNITS.kmToAU(apiData.semimajorAxis),
-        orbitalPeriod:  apiData.sideralOrbit  || 0,
-        rotationPeriod: apiData.sideralRotation || 0,
-        radiusKm:       apiData.meanRadius    || 0,
-        massValue:      apiData.mass?.massValue,
-        massExponent:   apiData.mass?.massExponent,
-        tempK:          apiData.avgTemp       || null,
-        gravity:        apiData.gravity       || null,
-        moonCount:      apiData.moons?.length || 0,
-      };
-    });
-
-    lastFetchTime = Date.now();
-    console.log("Planet data fetched:", planetData);
-  } catch (err) {
-    console.error("API fetch failed:", err);
+async function fetchWithCorsRetry(url) {
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const fetchUrl = proxy ? proxy + encodeURIComponent(url) : url;
+      const resp = await fetch(fetchUrl);
+      if (!resp.ok) continue;
+      return await resp.json();
+    } catch (e) {
+      continue; // Try next proxy
+    }
   }
+  throw new Error("All fetch attempts failed (CORS)");
+}
+const HORIZONS_CODES = {
+  mercury: "199", venus: "299", earth: "399",
+  mars: "499", jupiter: "599", saturn: "699",
+  uranus: "799", neptune: "899",
+};
+
+// Fetch RA, DEC, AZ, ALT, and distance for one planet from a given observer
+async function fetchHorizonsData(planetId, lat, lon, elev, datetime) {
+  if (planetId === "earth") {
+    return { ra: "—", dec: "—", az: "—", alt: "—", distEarthAU: 0, distEarthKm: 0 };
+  }
+  const code = HORIZONS_CODES[planetId];
+  const startTime = datetime; // e.g. "2026-03-23 06:17"
+  // Compute stop time = start + 1 day
+  const startDate = new Date(datetime.replace(" ", "T") + "Z");
+  const stopDate = new Date(startDate.getTime() + 86400000);
+  const stopTime = stopDate.toISOString().slice(0, 10);
+
+  // QUANTITIES: 1=RA/DEC, 4=AZ/EL, 20=range(delta)
+  const elevKm = (elev / 1000).toFixed(3);
+  const url = `${HORIZONS_API}?format=json`
+    + `&COMMAND='${code}'`
+    + `&CENTER='coord@399'`
+    + `&COORD_TYPE='GEODETIC'`
+    + `&SITE_COORD='${lon},${lat},${elevKm}'`
+    + `&EPHEM_TYPE='OBSERVER'`
+    + `&START_TIME='${startTime}'`
+    + `&STOP_TIME='${stopTime}'`
+    + `&STEP_SIZE='1 d'`
+    + `&QUANTITIES='1,4,20'`
+    + `&MAKE_EPHEM='YES'`;
+
+  const data = await fetchWithCorsRetry(url);
+  const text = data.result;
+  const soe = text.indexOf("$$SOE");
+  const eoe = text.indexOf("$$EOE");
+  if (soe === -1) throw new Error("No ephemeris data for " + planetId);
+
+  const line = text.substring(soe + 5, eoe).trim().split("\n")[0].trim();
+  // Parse: Date HR:MN  RA(h m s) DEC(d m s) AZ EL delta deldot
+  const parts = line.split(/\s+/);
+  // parts[0]=date, [1]=time, [2..4]=RA(h m s), [5..7]=DEC(d m s), [8]=AZ, [9]=EL, [10]=delta, [11]=deldot
+  const ra = `${parts[2]} ${parts[3]} ${parts[4]}`;
+  const dec = `${parts[5]} ${parts[6]} ${parts[7]}`;
+  const az = parseFloat(parts[8]).toFixed(4) + "°";
+  const alt = parseFloat(parts[9]).toFixed(4) + "°";
+  const deltaAU = parseFloat(parts[10]);
+
+  return {
+    ra, dec, az, alt,
+    distEarthAU: deltaAU.toFixed(5),
+    distEarthKm: Math.round(deltaAU * 149597870.7),
+  };
 }
 
-setInterval(() => fetchPlanetData(), REFRESH_INTERVAL_MS);
+// ─── Build planet data from static + Horizons live data ───
+async function fetchAllData(lat, lon, elev, zone, datetime) {
+  // 1. Static physical data (always available)
+  planetData = PLANET_IDS.map((id, i) => {
+    const config = PLANET_CONFIG[i];
+    const d = PLANET_STATIC_DATA[id] || {};
+    return {
+      ...config,
+      distanceKm:     d.semimajorAxis || 0,
+      distanceAU:     UNITS.kmToAU(d.semimajorAxis),
+      orbitalPeriod:  d.sideralOrbit  || 0,
+      rotationPeriod: d.sideralRotation || 0,
+      radiusKm:       d.meanRadius    || 0,
+      massValue:      d.mass?.massValue,
+      massExponent:   d.mass?.massExponent,
+      tempK:          d.avgTemp       || null,
+      gravity:        d.gravity       || null,
+      moonCount:      d.moons?.length || 0,
+      distEarthAU:    null,
+      distEarthKm:    null,
+    };
+  });
+
+  // 2. Fetch real-time positions + distances from NASA Horizons (parallel)
+  const results = await Promise.all(
+    PLANET_IDS.map(id => fetchHorizonsData(id, lat, lon, elev, datetime).catch(err => {
+      console.warn(`Horizons failed for ${id}:`, err.message);
+      return null;
+    }))
+  );
+
+  results.forEach((r, i) => {
+    if (!r) return;
+    planetData[i].distEarthAU = r.distEarthAU;
+    planetData[i].distEarthKm = r.distEarthKm;
+    positionData[PLANET_IDS[i]] = { ra: r.ra, dec: r.dec, az: r.az, alt: r.alt };
+  });
+
+  lastFetchTime = Date.now();
+  console.log("All data loaded:", planetData, positionData);
+}
+
+// ─── Positions API (Le Système Solaire /rest/positions) ───
+// ─── Settings Form Logic ─────────────────
+const settingsOverlay = document.getElementById("settings-overlay");
+const settingsForm = document.getElementById("settings-form");
+const settingsStatus = document.getElementById("settings-status");
+const btnNow = document.getElementById("btn-now");
+const btnLocate = document.getElementById("btn-locate");
+const btnCalculate = document.getElementById("btn-calculate");
+const recalcBtn = document.getElementById("recalc-btn");
+
+// "Now" button — fill current UTC datetime
+btnNow.addEventListener("click", () => {
+  const now = new Date();
+  // Format as yyyy-MM-ddTHH:mm
+  const iso = now.toISOString().slice(0, 16);
+  document.getElementById("obs-datetime").value = iso;
+  // Auto-detect timezone offset
+  const offset = -now.getTimezoneOffset() / 60;
+  document.getElementById("obs-zone").value = Math.round(offset);
+});
+
+// "Use My Location" button — geolocation
+btnLocate.addEventListener("click", () => {
+  if (!navigator.geolocation) {
+    settingsStatus.textContent = "Geolocation not supported by your browser.";
+    settingsStatus.className = "settings-status error";
+    return;
+  }
+  settingsStatus.textContent = "Getting location...";
+  settingsStatus.className = "settings-status";
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      document.getElementById("obs-lat").value = pos.coords.latitude.toFixed(6);
+      document.getElementById("obs-lon").value = pos.coords.longitude.toFixed(6);
+      if (pos.coords.altitude) {
+        document.getElementById("obs-elev").value = Math.round(pos.coords.altitude);
+      }
+      settingsStatus.textContent = "Location detected!";
+      settingsStatus.className = "settings-status success";
+    },
+    (err) => {
+      settingsStatus.textContent = "Location access denied. Please enter manually.";
+      settingsStatus.className = "settings-status error";
+    }
+  );
+});
+
+// Form submit — calculate positions
+settingsForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const lat = parseFloat(document.getElementById("obs-lat").value);
+  const lon = parseFloat(document.getElementById("obs-lon").value);
+  const elev = parseInt(document.getElementById("obs-elev").value);
+  const zone = parseInt(document.getElementById("obs-zone").value);
+  const datetimeRaw = document.getElementById("obs-datetime").value;
+  // Convert to ISO 8601: yyyy-MM-ddThh:mm:ss
+  const datetime = datetimeRaw.length === 16 ? datetimeRaw + ":00" : datetimeRaw;
+
+  observerSettings = { lat, lon, elev, zone, datetime };
+
+  settingsStatus.textContent = "Calculating positions...";
+  settingsStatus.className = "settings-status";
+  btnCalculate.disabled = true;
+  btnCalculate.textContent = "Loading...";
+
+  try {
+    // Fetch all data from NASA Horizons
+    await fetchAllData(lat, lon, elev, zone, datetime);
+
+    const hasPositions = Object.keys(positionData).length > 0;
+    settingsStatus.textContent = hasPositions
+      ? "Done! Real-time positions loaded."
+      : "Positions unavailable (CORS). Showing physical data only.";
+    settingsStatus.className = hasPositions ? "settings-status success" : "settings-status";
+
+    // Hide overlay, show planets (always proceed even if positions failed)
+    setTimeout(() => {
+      settingsOverlay.classList.add("hidden");
+      spheresContainer.style.display = "";
+      recalcBtn.style.display = "";
+    }, 500);
+  } catch (err) {
+    // Even on total failure, show with static data
+    settingsStatus.textContent = "API error — showing cached data. " + err.message;
+    settingsStatus.className = "settings-status error";
+    setTimeout(() => {
+      settingsOverlay.classList.add("hidden");
+      spheresContainer.style.display = "";
+      recalcBtn.style.display = "";
+    }, 1500);
+  }
+
+  btnCalculate.disabled = false;
+  btnCalculate.textContent = "Calculate Positions";
+});
+
+// Recalculate button — reopen settings
+recalcBtn.addEventListener("click", () => {
+  settingsOverlay.classList.remove("hidden");
+  settingsStatus.textContent = "";
+});
 
 // ─── Init ─────────────────────────────────
-async function init() {
+function init() {
   buildGalaxyLayers();
   createPlanetSpheres();
   requestAnimationFrame(drawGalaxy);
-  await fetchPlanetData();
+  // Pre-fill "Now" on load
+  btnNow.click();
 }
 
 init();

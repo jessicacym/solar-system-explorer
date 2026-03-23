@@ -195,6 +195,18 @@ const CATEGORIES = [
   },
 ];
 
+// Static fallback data (used when API is unavailable)
+const PLANET_STATIC_DATA = {
+  mercury:  { semimajorAxis: 57909227, sideralOrbit: 87.97, sideralRotation: 1407.6, meanRadius: 2439.7, mass: { massValue: 3.30, massExponent: 23 }, avgTemp: 440, gravity: 3.7, moons: null },
+  venus:    { semimajorAxis: 108209475, sideralOrbit: 224.7, sideralRotation: -5832.5, meanRadius: 6051.8, mass: { massValue: 4.87, massExponent: 24 }, avgTemp: 737, gravity: 8.87, moons: null },
+  earth:    { semimajorAxis: 149598262, sideralOrbit: 365.26, sideralRotation: 23.93, meanRadius: 6371.0, mass: { massValue: 5.97, massExponent: 24 }, avgTemp: 288, gravity: 9.8, moons: [{name:"Moon"}] },
+  mars:     { semimajorAxis: 227943824, sideralOrbit: 686.97, sideralRotation: 24.62, meanRadius: 3389.5, mass: { massValue: 6.42, massExponent: 23 }, avgTemp: 210, gravity: 3.71, moons: [{name:"Phobos"},{name:"Deimos"}] },
+  jupiter:  { semimajorAxis: 778340821, sideralOrbit: 4332.59, sideralRotation: 9.93, meanRadius: 69911, mass: { massValue: 1.90, massExponent: 27 }, avgTemp: 165, gravity: 24.79, moons: new Array(95) },
+  saturn:   { semimajorAxis: 1426666422, sideralOrbit: 10759.22, sideralRotation: 10.66, meanRadius: 58232, mass: { massValue: 5.68, massExponent: 26 }, avgTemp: 134, gravity: 10.44, moons: new Array(146) },
+  uranus:   { semimajorAxis: 2870658186, sideralOrbit: 30688.5, sideralRotation: -17.24, meanRadius: 25362, mass: { massValue: 8.68, massExponent: 25 }, avgTemp: 76, gravity: 8.87, moons: new Array(28) },
+  neptune:  { semimajorAxis: 4498396441, sideralOrbit: 60182, sideralRotation: 16.11, meanRadius: 24622, mass: { massValue: 1.02, massExponent: 26 }, avgTemp: 72, gravity: 11.15, moons: new Array(16) },
+};
+
 // Unit conversion helpers
 const UNITS = {
   kmToAU: (km) => (km / 149597870.7).toFixed(3),

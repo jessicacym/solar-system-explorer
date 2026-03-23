@@ -12,14 +12,111 @@
       rel="stylesheet"
     />
 
-    <link rel="stylesheet" href="style.css?v=6" />
+    <link rel="stylesheet" href="style.css?v=7" />
   </head>
   <body>
     <!-- Fixed galaxy canvas — always behind everything -->
     <canvas id="galaxy-canvas"></canvas>
 
     <!-- Planet spheres — positioned over canvas by JS -->
-    <div class="planet-spheres" id="planet-spheres"></div>
+    <div class="planet-spheres" id="planet-spheres" style="display: none"></div>
+
+    <!-- Observer Settings Overlay -->
+    <div class="settings-overlay" id="settings-overlay">
+      <div class="settings-card">
+        <h2 class="settings-title">Solar System Explorer</h2>
+        <p class="settings-desc">
+          Enter your observation location and time to calculate real-time planet
+          positions.
+        </p>
+
+        <form id="settings-form" autocomplete="off">
+          <div class="settings-row">
+            <div class="settings-field">
+              <label for="obs-lat">Latitude (°)</label>
+              <input
+                type="number"
+                id="obs-lat"
+                step="any"
+                min="-90"
+                max="90"
+                placeholder="e.g. 45.78"
+                required
+              />
+            </div>
+            <div class="settings-field">
+              <label for="obs-lon">Longitude (°)</label>
+              <input
+                type="number"
+                id="obs-lon"
+                step="any"
+                min="-180"
+                max="180"
+                placeholder="e.g. 3.07"
+                required
+              />
+            </div>
+            <div class="settings-field">
+              <label for="obs-elev">Elevation (m)</label>
+              <input
+                type="number"
+                id="obs-elev"
+                step="1"
+                min="0"
+                max="9000"
+                value="0"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-field">
+              <label for="obs-zone">Timezone (UTC+)</label>
+              <input
+                type="number"
+                id="obs-zone"
+                step="1"
+                min="-12"
+                max="14"
+                value="0"
+                required
+              />
+            </div>
+            <div class="settings-field settings-field--wide">
+              <label for="obs-datetime">Date & Time (UTC)</label>
+              <input type="datetime-local" id="obs-datetime" required />
+            </div>
+          </div>
+
+          <div class="settings-actions">
+            <button
+              type="submit"
+              class="settings-btn settings-btn--primary"
+              id="btn-calculate"
+            >
+              Calculate Positions
+            </button>
+            <button
+              type="button"
+              class="settings-btn settings-btn--now"
+              id="btn-now"
+            >
+              Now
+            </button>
+            <button
+              type="button"
+              class="settings-btn settings-btn--locate"
+              id="btn-locate"
+            >
+              Use My Location
+            </button>
+          </div>
+
+          <p class="settings-status" id="settings-status"></p>
+        </form>
+      </div>
+    </div>
 
     <!-- Planet detail panel (slides in from right) -->
     <aside class="detail-panel" id="detail-panel" hidden>
@@ -38,11 +135,20 @@
         <a href="https://api.le-systeme-solaire.net" target="_blank"
           >Le Système Solaire API</a
         >
+        +
+        <a href="https://ssd.jpl.nasa.gov/" target="_blank"
+          >NASA JPL Horizons</a
+        >
       </p>
     </aside>
 
-    <script src="planets.js?v=6"></script>
-    <script src="particle-sphere.js?v=6"></script>
-    <script src="main.js?v=6"></script>
+    <!-- Recalculate button (visible after initial setup) -->
+    <button class="recalc-btn" id="recalc-btn" style="display: none">
+      Settings
+    </button>
+
+    <script src="planets.js?v=7"></script>
+    <script src="particle-sphere.js?v=7"></script>
+    <script src="main.js?v=7"></script>
   </body>
 </html>
