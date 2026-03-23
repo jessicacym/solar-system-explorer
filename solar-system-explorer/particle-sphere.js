@@ -21,7 +21,7 @@ class ParticleSphere {
     this.colors = opts.colors || ["#ffffff"];
     this.particleCount = opts.particleCount || 1200;
     this.radiusFrac = opts.radius || 0.38;
-    this.rotationSpeed = opts.rotationSpeed || 0.003;
+    this.rotationSpeed = opts.rotationSpeed || 0.006;
     this.baseParticleSize = opts.particleSize || 1.2;
     this.glowIntensity = opts.glowIntensity || 0.6;
     this.autoRotate = opts.autoRotate !== false;
@@ -153,8 +153,8 @@ class ParticleSphere {
       const screenY = cy + p.sy * radius;
 
       // Depth-based alpha: front particles brighter, back particles dimmer
-      const depthAlpha = 0.15 + (p.z + 1) * 0.425; // z ranges from -1 to 1
-      const alpha = depthAlpha * p.brightness;
+      const depthAlpha = 0.3 + (p.z + 1) * 0.85; // 2x brightness
+      const alpha = Math.min(1, depthAlpha * p.brightness);
       const size = p.size * p.scale;
 
       const [r, g, b] = p.rgb;
@@ -263,7 +263,7 @@ function createPlanetParticleSphere(planetId, size, overrides = {}) {
     colors: palette,
     particleCount: Math.round(800 * countScale),
     radius: 0.36,
-    rotationSpeed: 0.004 + Math.random() * 0.002,
+    rotationSpeed: 0.008 + Math.random() * 0.004,
     particleSize: 1.0 * sizeScale,
     glowIntensity: 0.55,
     ...overrides,

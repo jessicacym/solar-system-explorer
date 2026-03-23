@@ -62,7 +62,7 @@ function buildGalaxyLayers() {
   const H = canvas.height;
   const cx = W / 2;
   const cy = H / 2;
-  const maxR = Math.min(W, H) * 0.44;
+  const maxR = Math.min(W, H) * 0.88;
   const yScale = 0.48;
 
   // ── 1. Background layer (stars + scattered colored dust) ──
@@ -178,11 +178,15 @@ function drawGalaxy(time) {
   const cx = W / 2;
   const cy = H / 2;
 
-  ctx.clearRect(0, 0, W, H);
+  // Semi-transparent clear for motion trail / diffusion effect
+  ctx.fillStyle = "rgba(9, 11, 17, 0.25)";
+  ctx.fillRect(0, 0, W, H);
 
   // 1. Background stars + dust (static)
   if (bgLayer) {
+    ctx.globalAlpha = 0.7;
     ctx.drawImage(bgLayer, 0, 0);
+    ctx.globalAlpha = 1;
   }
 
   // 2. Ambient nebula glow (multiple layered radial gradients)
@@ -197,7 +201,7 @@ function drawGalaxy(time) {
 
   // 3. Rotating spiral nebula (pre-rendered texture)
   if (nebulaLayer) {
-    spiralRotation += 0.00012;
+    spiralRotation += 0.00024;
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(spiralRotation);
@@ -218,10 +222,49 @@ function drawGalaxy(time) {
   ctx.arc(cx, cy, voidR * 3, 0, Math.PI * 2);
   ctx.fill();
 
+  // Update planet positions to follow spiral rotation
+  updatePlanetSpiralPositions();
+
   requestAnimationFrame(drawGalaxy);
 }
 
-// ─── Planet Spheres (positioned around viewport edges, BlueYard-style) ───
+// ─── Spiral position calculator ──────────
+// Place a planet on spiral arm 0 using its orbitScale as parameter t
+function getSpiralScreenPos(t, rotation) {
+  const W = canvas.width;
+  const H = canvas.height;
+  const cx = W / 2;
+  const cy = H / 2;
+  const maxR = Math.min(W, H) * 0.88;
+  const yScale = 0.48;
+
+  const theta = t * SPIRAL_TURNS * Math.PI * 2;
+  const r = t * maxR;
+  let px = r * Math.cos(theta);
+  let py = (r * Math.sin(theta)) * yScale;
+
+  // Apply the same rotation as the spiral texture
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const rx = px * cos - py * sin;
+  const ry = px * sin + py * cos;
+
+  return { x: cx + rx, y: cy + ry };
+}
+
+// ─── Update planet positions on spiral each frame ───
+function updatePlanetSpiralPositions() {
+  if (currentSection > 1) return; // Only in galaxy/hero view
+  PLANET_CONFIG.forEach(config => {
+    const el = spheresContainer.querySelector(`[data-planet="${config.id}"]`);
+    if (!el) return;
+    const pos = getSpiralScreenPos(config.orbitScale, spiralRotation);
+    el.style.left = pos.x + "px";
+    el.style.top = pos.y + "px";
+  });
+}
+
+// ─── Planet Spheres (bound to spiral arms) ───
 function createPlanetSpheres() {
   spheresContainer.innerHTML = "";
   // Destroy old particle spheres
@@ -233,12 +276,10 @@ function createPlanetSpheres() {
     sphere.className = "planet-sphere";
     sphere.dataset.planet = config.id;
 
-    // Position from config
-    const pos = config.position;
-    if (pos.top) sphere.style.top = pos.top;
-    if (pos.bottom) sphere.style.bottom = pos.bottom;
-    if (pos.left) sphere.style.left = pos.left;
-    if (pos.right) sphere.style.right = pos.right;
+    // Initial position on spiral
+    const pos = getSpiralScreenPos(config.orbitScale, spiralRotation);
+    sphere.style.left = pos.x + "px";
+    sphere.style.top = pos.y + "px";
 
     // Subtitle (category label)
     const subtitle = document.createElement("span");
@@ -252,11 +293,11 @@ function createPlanetSpheres() {
     name.textContent = config.nameEN;
     sphere.appendChild(name);
 
-    // Particle sphere canvas (replaces the old CSS gradient ball)
+    // Particle sphere canvas
     const ballWrap = document.createElement("div");
     ballWrap.className = "sphere-ball-wrap";
 
-    const sphereSize = 70;
+    const sphereSize = 140;
     const { canvas: pCanvas, sphere: pSphere } = createPlanetParticleSphere(config.id, sphereSize, {
       particleCount: 600,
       particleSize: 0.9,
@@ -346,7 +387,7 @@ function openDetailPanel(planet) {
   // Create particle sphere for detail panel header
   const detailDotContainer = document.getElementById("detail-dot");
   detailDotContainer.innerHTML = "";
-  const detailSize = 48;
+  const detailSize = 96;
   const { canvas: detailCanvas, sphere: dSphere } = createPlanetParticleSphere(planet.id, detailSize, {
     particleCount: 500,
     particleSize: 0.8,
@@ -447,7 +488,7 @@ function renderCategoryPlanets() {
       item.className = "cat-planet-item";
 
       // Create particle sphere for category dot
-      const dotSize = 44;
+      const dotSize = 88;
       const { canvas: dotCanvas, sphere: dotSphere } = createPlanetParticleSphere(planetId, dotSize, {
         particleCount: 400,
         particleSize: 0.7,
