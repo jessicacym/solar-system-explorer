@@ -43,6 +43,32 @@ button {
   font-family: inherit;
 }
 
+/* ─── Site Title ─── */
+.site-title {
+  position: fixed;
+  top: 28px;
+  left: 32px;
+  z-index: 100;
+  font-family: "Bitcount Prop Double", var(--font-sans);
+  font-size: clamp(42px, 5vw, 64px);
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.82);
+  text-transform: uppercase;
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (max-width: 768px) {
+  .site-title {
+    font-size: 32px;
+    top: 16px;
+    left: 16px;
+    letter-spacing: 0.08em;
+  }
+}
+
 /* ─── Galaxy Canvas ─── */
 #galaxy-canvas {
   position: fixed;

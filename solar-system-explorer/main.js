@@ -444,13 +444,18 @@ document.addEventListener("click", (e) => {
 
 // ─── NASA JPL Horizons API (via Vercel proxy) ───
 // On Vercel: calls /api/horizons (serverless function, no CORS)
-// On localhost: calls NASA directly (may need browser CORS extension)
+// On localhost: tries NASA direct, then falls back to CORS proxies
 const IS_LOCAL = window.location.hostname === "127.0.0.1"
   || window.location.hostname === "localhost";
 
 const HORIZONS_API = IS_LOCAL
   ? "https://ssd.jpl.nasa.gov/api/horizons.api"  // direct (local dev)
   : "/api/horizons";                              // Vercel proxy (production)
+
+const CORS_PROXIES = [
+  "https://corsproxy.io/?",
+  "https://api.allorigins.win/raw?url=",
+];
 
 const HORIZONS_CODES = {
   mercury: "199", venus: "299", earth: "399",
@@ -483,8 +488,25 @@ async function fetchHorizonsData(planetId, lat, lon, elev, datetime) {
     MAKE_EPHEM: "'YES'",
   });
 
-  const response = await fetch(`${HORIZONS_API}?${params.toString()}`);
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const directUrl = `${HORIZONS_API}?${params.toString()}`;
+
+  // Try direct first, then CORS proxies if on localhost
+  const attempts = [directUrl];
+  if (IS_LOCAL) {
+    const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?${params.toString()}`;
+    CORS_PROXIES.forEach(proxy => attempts.push(proxy + encodeURIComponent(nasaUrl)));
+  }
+
+  let response;
+  for (const url of attempts) {
+    try {
+      response = await fetch(url);
+      if (response.ok) break;
+    } catch (e) {
+      continue;
+    }
+  }
+  if (!response || !response.ok) throw new Error("All fetch attempts failed (CORS)");
 
   const data  = await response.json();
   const text  = data.result;
