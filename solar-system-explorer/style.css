@@ -108,20 +108,14 @@ button {
 }
 
 .sphere-ball {
-  width: 44px;
-  height: 44px;
+  width: 70px;
+  height: 70px;
   border-radius: 50%;
-  transition:
-    box-shadow 0.3s var(--ease),
-    transform 0.3s var(--ease);
+  transition: transform 0.3s var(--ease);
 }
 
-.sphere-ring {
-  position: absolute;
-  inset: -8px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.15);
-  transition: border-color 0.3s var(--ease);
+canvas.sphere-ball {
+  border-radius: 0;
 }
 
 .planet-sphere:hover .sphere-subtitle {
@@ -133,11 +127,12 @@ button {
 }
 
 .planet-sphere:hover .sphere-ball {
-  transform: scale(1.1);
+  transform: scale(1.15);
 }
 
-.planet-sphere:hover .sphere-ring {
-  border-color: rgba(255, 255, 255, 0.35);
+/* Particle sphere canvases */
+.particle-sphere-canvas {
+  display: block;
 }
 
 /* Category labels removed — planets themselves serve as edge labels */
@@ -395,10 +390,13 @@ button {
 }
 
 .cat-planet-dot {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
+}
+
+canvas.cat-planet-dot {
+  border-radius: 0;
 }
 
 .cat-planet-info {
@@ -477,10 +475,12 @@ button {
 }
 
 .detail-dot {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .detail-name {
@@ -595,7 +595,7 @@ button {
   }
 
   .sphere-ball {
-    width: 32px;
-    height: 32px;
+    width: 50px;
+    height: 50px;
   }
 }

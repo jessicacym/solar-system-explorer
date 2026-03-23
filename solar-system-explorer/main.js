@@ -24,6 +24,10 @@ let nebulaLayer = null;   // The dense spiral cloud
 let bgLayer = null;       // Background star field + colored dust
 let nebulaData = [];      // Particle positions for rotation
 
+// Active particle spheres (keyed by planetId)
+let activeParticleSpheres = {};
+let detailParticleSphere = null;
+
 // ─── DOM Refs ─────────────────────────────
 const canvas = document.getElementById("galaxy-canvas");
 const ctx = canvas.getContext("2d");
@@ -220,6 +224,9 @@ function drawGalaxy(time) {
 // ─── Planet Spheres (positioned around viewport edges, BlueYard-style) ───
 function createPlanetSpheres() {
   spheresContainer.innerHTML = "";
+  // Destroy old particle spheres
+  Object.values(activeParticleSpheres).forEach(s => s.destroy());
+  activeParticleSpheres = {};
 
   PLANET_CONFIG.forEach(config => {
     const sphere = document.createElement("div");
@@ -245,20 +252,19 @@ function createPlanetSpheres() {
     name.textContent = config.nameEN;
     sphere.appendChild(name);
 
-    // Ball with ring
+    // Particle sphere canvas (replaces the old CSS gradient ball)
     const ballWrap = document.createElement("div");
     ballWrap.className = "sphere-ball-wrap";
 
-    const ball = document.createElement("div");
-    ball.className = "sphere-ball";
-    ball.style.background = `radial-gradient(circle at 35% 35%, ${lightenColor(config.color, 50)}, ${config.color}, ${darkenColor(config.color, 40)})`;
-    ball.style.boxShadow = `0 0 20px ${config.glowColor}, 0 0 40px ${config.glowColor}`;
+    const sphereSize = 70;
+    const { canvas: pCanvas, sphere: pSphere } = createPlanetParticleSphere(config.id, sphereSize, {
+      particleCount: 600,
+      particleSize: 0.9,
+      glowIntensity: 0.5,
+    });
+    pCanvas.classList.add("sphere-ball");
 
-    const ring = document.createElement("div");
-    ring.className = "sphere-ring";
-
-    ballWrap.appendChild(ball);
-    ballWrap.appendChild(ring);
+    ballWrap.appendChild(pCanvas);
     sphere.appendChild(ballWrap);
 
     sphere.addEventListener("click", () => {
@@ -267,6 +273,10 @@ function createPlanetSpheres() {
     });
 
     spheresContainer.appendChild(sphere);
+
+    // Start the particle animation
+    pSphere.start();
+    activeParticleSpheres[config.id] = pSphere;
   });
 }
 
@@ -327,8 +337,25 @@ document.getElementById("nav-logo").addEventListener("click", (e) => {
 function openDetailPanel(planet) {
   selectedPlanet = planet.id;
 
-  document.getElementById("detail-dot").style.background = planet.color;
-  document.getElementById("detail-dot").style.boxShadow = `0 0 16px ${planet.glowColor}`;
+  // Destroy previous detail particle sphere
+  if (detailParticleSphere) {
+    detailParticleSphere.destroy();
+    detailParticleSphere = null;
+  }
+
+  // Create particle sphere for detail panel header
+  const detailDotContainer = document.getElementById("detail-dot");
+  detailDotContainer.innerHTML = "";
+  const detailSize = 48;
+  const { canvas: detailCanvas, sphere: dSphere } = createPlanetParticleSphere(planet.id, detailSize, {
+    particleCount: 500,
+    particleSize: 0.8,
+    glowIntensity: 0.5,
+  });
+  detailDotContainer.appendChild(detailCanvas);
+  dSphere.start();
+  detailParticleSphere = dSphere;
+
   document.getElementById("detail-name").textContent = planet.nameEN;
   document.getElementById("detail-cn").textContent = planet.nameCN;
   document.getElementById("detail-tagline").textContent = planet.tagline || "";
@@ -381,6 +408,10 @@ function closeDetailPanel() {
     detailPanel.hidden = true;
   }, 400);
   selectedPlanet = null;
+  if (detailParticleSphere) {
+    detailParticleSphere.destroy();
+    detailParticleSphere = null;
+  }
 }
 
 document.getElementById("detail-close").addEventListener("click", closeDetailPanel);
@@ -414,16 +445,31 @@ function renderCategoryPlanets() {
 
       const item = document.createElement("div");
       item.className = "cat-planet-item";
-      item.innerHTML = `
-        <div class="cat-planet-dot" style="background: radial-gradient(circle at 35% 35%, ${lightenColor(planet.color, 40)}, ${planet.color}); box-shadow: 0 0 14px ${planet.glowColor}"></div>
-        <div class="cat-planet-info">
-          <span class="cat-planet-name">${planet.nameEN}</span>
-          <span class="cat-planet-sub">${planet.distanceAU} AU · ${UNITS.formatPeriod(planet.orbitalPeriod)}</span>
-        </div>
+
+      // Create particle sphere for category dot
+      const dotSize = 44;
+      const { canvas: dotCanvas, sphere: dotSphere } = createPlanetParticleSphere(planetId, dotSize, {
+        particleCount: 400,
+        particleSize: 0.7,
+        glowIntensity: 0.45,
+      });
+      dotCanvas.classList.add("cat-planet-dot");
+
+      const info = document.createElement("div");
+      info.className = "cat-planet-info";
+      info.innerHTML = `
+        <span class="cat-planet-name">${planet.nameEN}</span>
+        <span class="cat-planet-sub">${planet.distanceAU} AU · ${UNITS.formatPeriod(planet.orbitalPeriod)}</span>
       `;
 
+      item.appendChild(dotCanvas);
+      item.appendChild(info);
       item.addEventListener("click", () => openDetailPanel(planet));
       container.appendChild(item);
+
+      dotSphere.start();
+      // Store with a prefixed key so they don't conflict with galaxy spheres
+      activeParticleSpheres["cat-" + planetId] = dotSphere;
     });
   });
 }
