@@ -7,13 +7,10 @@
 
 // ─── Constants ───────────────────────────
 const PLANET_IDS = ["mercury", "venus", "earth", "mars", "jupiter", "saturn", "uranus", "neptune"];
-const SPIRAL_ARMS = 2;
-const SPIRAL_TURNS = 3.2;
 
 // ─── State ────────────────────────────────
 let planetData = [];
 let lastFetchTime = null;
-let spiralRotation = 0;
 let selectedPlanet = null;
 let positionData = {};  // keyed by planet name (French→English mapped)
 let observerSettings = null; // { lat, lon, elev, zone, datetime }
@@ -44,15 +41,13 @@ window.addEventListener("resize", () => {
 });
 resizeCanvas();
 
-// ─── Spiral maxR: fit all planets on screen ───
-// The outermost planet (Neptune) has orbitScale=0.96.
-// Its spiral position must stay within the viewport with margin.
-// We compute maxR so that the furthest spiral point fits.
+// ─── Orbit radius: fit all planets on screen ───
+// Neptune (orbitScale=0.96) must stay within viewport with margin.
 function getMaxR() {
   const W = canvas.width;
   const H = canvas.height;
-  const margin = 100;
-  return ((Math.min(W, H) / 2 - margin) / 0.96) * 1.5;
+  const margin = 110;
+  return (Math.min(W, H) / 2 - margin) / 0.96;
 }
 
 // ─── Color utility ───────────────────────
@@ -64,14 +59,13 @@ function pickColor(roll) {
   return [200 + Math.random() * 40, 8 + Math.random() * 12, 80 + Math.random() * 20];
 }
 
-// ─── Build galaxy layers (offscreen) ─────
+// ─── Build background + orbit ring layers (offscreen) ─────
 function buildGalaxyLayers() {
   const W = canvas.width;
   const H = canvas.height;
   const maxR = getMaxR();
-  const yScale = 0.48;
 
-  // 1. Background layer
+  // 1. Starfield background layer
   const bgC = document.createElement("canvas");
   bgC.width = W; bgC.height = H;
   const bgCtx = bgC.getContext("2d");
@@ -102,78 +96,55 @@ function buildGalaxyLayers() {
   bgCtx.globalCompositeOperation = "source-over";
   bgLayer = bgC;
 
-  // 2. Nebula spiral layer
-  const nebulaSize = Math.ceil(maxR * 2.6);
+  // 2. Orbit rings layer — concentric circles, one per planet
+  const nebulaSize = Math.ceil(maxR * 2.4);
   const nC = document.createElement("canvas");
   nC.width = nebulaSize; nC.height = nebulaSize;
   const nCtx = nC.getContext("2d");
   const ncx = nebulaSize / 2;
   const ncy = nebulaSize / 2;
 
-  nCtx.globalCompositeOperation = "lighter";
-  const TOTAL = 18000;
+  PLANET_CONFIG.forEach(config => {
+    const orbitR = config.orbitScale * maxR;
 
-  for (let i = 0; i < TOTAL; i++) {
-    const arm = Math.floor(Math.random() * SPIRAL_ARMS);
-    const t = Math.random();
-    const armOffset = (arm / SPIRAL_ARMS) * Math.PI * 2;
-    const theta = t * SPIRAL_TURNS * Math.PI * 2 + armOffset;
-    const r = t * maxR;
-
-    const scatterW = maxR * 0.25 * (0.2 + t * 0.8);
-    const perpAngle = theta + Math.PI / 2;
-    const scatter = (Math.random() - 0.5) * scatterW;
-
-    let px = r * Math.cos(theta) + scatter * Math.cos(perpAngle);
-    let py = (r * Math.sin(theta) + scatter * Math.sin(perpAngle)) * yScale;
-
-    const dist = Math.sqrt(px * px + py * py);
-    const voidR = maxR * 0.07;
-    if (dist < voidR && Math.random() > dist / voidR * 0.4) continue;
-
-    const [h, s, l] = pickColor(Math.random());
-    const size = Math.random() * 2.2 + 0.4;
-    const densityFade = 1 - t * 0.3;
-    const alpha = (Math.random() * 0.55 + 0.15) * densityFade;
-
-    const sx = ncx + px;
-    const sy = ncy + py;
-    const glowR = size * 2.5;
-    const grad = nCtx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
-    grad.addColorStop(0, `hsla(${h},${s}%,${l}%,${alpha})`);
-    grad.addColorStop(0.4, `hsla(${h},${s}%,${l}%,${alpha * 0.4})`);
-    grad.addColorStop(1, "transparent");
-    nCtx.fillStyle = grad;
-    nCtx.fillRect(sx - glowR, sy - glowR, glowR * 2, glowR * 2);
-
-    if (Math.random() < 0.3) {
-      nCtx.beginPath();
-      nCtx.arc(sx, sy, size * 0.5, 0, Math.PI * 2);
-      nCtx.fillStyle = `hsla(${h},${s}%,${Math.min(100, l + 20)}%,${alpha * 0.8})`;
-      nCtx.fill();
+    // Faint dust scatter around the orbit ring
+    nCtx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 280; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radialJitter = (Math.random() - 0.5) * maxR * 0.032;
+      const r = orbitR + radialJitter;
+      const px = ncx + Math.cos(angle) * r;
+      const py = ncy + Math.sin(angle) * r;
+      const [h, s, l] = pickColor(Math.random());
+      const size = Math.random() * 1.6 + 0.3;
+      const alpha = (Math.random() * 0.28 + 0.06);
+      const glowR = size * 2.2;
+      const grad = nCtx.createRadialGradient(px, py, 0, px, py, glowR);
+      grad.addColorStop(0, `hsla(${h},${s}%,${l}%,${alpha})`);
+      grad.addColorStop(1, "transparent");
+      nCtx.fillStyle = grad;
+      nCtx.fillRect(px - glowR, py - glowR, glowR * 2, glowR * 2);
     }
-  }
 
-  nCtx.globalCompositeOperation = "destination-out";
-  const voidGrad = nCtx.createRadialGradient(ncx, ncy, 0, ncx, ncy, maxR * 0.12);
-  voidGrad.addColorStop(0, "rgba(0,0,0,0.92)");
-  voidGrad.addColorStop(0.5, "rgba(0,0,0,0.5)");
-  voidGrad.addColorStop(1, "transparent");
-  nCtx.fillStyle = voidGrad;
-  nCtx.fillRect(0, 0, nebulaSize, nebulaSize);
-  nCtx.globalCompositeOperation = "source-over";
+    // Thin orbit ring line
+    nCtx.globalCompositeOperation = "source-over";
+    nCtx.beginPath();
+    nCtx.arc(ncx, ncy, orbitR, 0, Math.PI * 2);
+    nCtx.strokeStyle = "rgba(140, 160, 210, 0.13)";
+    nCtx.lineWidth = 0.7;
+    nCtx.stroke();
+  });
 
   nebulaLayer = nC;
 }
 
-// ─── Draw Galaxy (per-frame) ─────────────
-function drawGalaxy(time) {
+// ─── Draw frame ──────────────────────────
+function drawGalaxy() {
   const W = canvas.width;
   const H = canvas.height;
   const cx = W / 2;
   const cy = H / 2;
 
-  // Semi-transparent clear for motion trail / diffusion effect
   ctx.fillStyle = "rgba(9, 11, 17, 0.25)";
   ctx.fillRect(0, 0, W, H);
 
@@ -192,76 +163,121 @@ function drawGalaxy(time) {
   ctx.fillStyle = g1;
   ctx.fillRect(0, 0, W, H);
 
+  // Draw static orbit rings layer (no rotation)
   if (nebulaLayer) {
-    spiralRotation += 0.00024;
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.rotate(spiralRotation);
     ctx.globalCompositeOperation = "lighter";
     ctx.drawImage(nebulaLayer, -nebulaLayer.width / 2, -nebulaLayer.height / 2);
     ctx.globalCompositeOperation = "source-over";
     ctx.restore();
   }
 
-  const voidR = Math.min(W, H) * 0.05;
-  const vg = ctx.createRadialGradient(cx, cy, 0, cx, cy, voidR * 3);
-  vg.addColorStop(0, "rgba(9, 11, 17, 0.85)");
-  vg.addColorStop(0.35, "rgba(9, 11, 17, 0.45)");
-  vg.addColorStop(1, "transparent");
-  ctx.fillStyle = vg;
-  ctx.beginPath();
-  ctx.arc(cx, cy, voidR * 3, 0, Math.PI * 2);
-  ctx.fill();
-
-  updatePlanetSpiralPositions();
+  updatePlanetOrbitPositions();
   requestAnimationFrame(drawGalaxy);
 }
 
-// ─── Spiral position calculator ──────────
-function getSpiralScreenPos(t, rotation) {
+// ─── Concentric orbit position calculator ─
+// Each planet sits on its own circular orbit at a fixed angle.
+// orbitAngle is stored per-planet and advances each frame.
+const orbitAngles = {};
+
+function initOrbitAngles() {
+  // Spread planets evenly so they don't start clustered
+  PLANET_CONFIG.forEach((config, i) => {
+    orbitAngles[config.id] = (i / PLANET_CONFIG.length) * Math.PI * 2;
+  });
+}
+
+function getOrbitScreenPos(config) {
   const W = canvas.width;
   const H = canvas.height;
   const cx = W / 2;
   const cy = H / 2;
   const maxR = getMaxR();
-  const yScale = 0.48;
-
-  const theta = t * SPIRAL_TURNS * Math.PI * 2;
-  const r = t * maxR;
-  const px = r * Math.cos(theta);
-  const py = (r * Math.sin(theta)) * yScale;
-
-  const cos = Math.cos(rotation);
-  const sin = Math.sin(rotation);
-  const rx = px * cos - py * sin;
-  const ry = px * sin + py * cos;
-
-  return { x: cx + rx, y: cy + ry };
+  const r = config.orbitScale * maxR;
+  const angle = orbitAngles[config.id];
+  return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
 }
 
 // ─── Update planet positions each frame ───
-function updatePlanetSpiralPositions() {
+function updatePlanetOrbitPositions() {
+  // Keep sun pinned to canvas center (handles resize too)
+  const sunEl = spheresContainer.querySelector("[data-planet='sun']");
+  if (sunEl) {
+    sunEl.style.left = (canvas.width / 2) + "px";
+    sunEl.style.top = (canvas.height / 2) + "px";
+  }
+
   PLANET_CONFIG.forEach(config => {
+    // Advance angle (inner planets faster, outer slower — scaled by speedMultiplier)
+    orbitAngles[config.id] += 0.0003 * (config.speedMultiplier || 1);
+
     const el = spheresContainer.querySelector(`[data-planet="${config.id}"]`);
     if (!el) return;
-    const pos = getSpiralScreenPos(config.orbitScale, spiralRotation);
+    const pos = getOrbitScreenPos(config);
     el.style.left = pos.x + "px";
     el.style.top = pos.y + "px";
   });
 }
 
-// ─── Planet Spheres (bound to spiral arms) ───
+// ─── Sun sphere (center, non-clickable) ───
+function createSunSphere() {
+  const existing = spheresContainer.querySelector("[data-planet='sun']");
+  if (existing) existing.remove();
+  if (activeParticleSpheres["sun"]) {
+    activeParticleSpheres["sun"].destroy();
+    delete activeParticleSpheres["sun"];
+  }
+
+  const sunEl = document.createElement("div");
+  sunEl.className = "planet-sphere";
+  sunEl.dataset.planet = "sun";
+  sunEl.style.pointerEvents = "none";
+
+  const W = canvas.width;
+  const H = canvas.height;
+  sunEl.style.left = (W / 2) + "px";
+  sunEl.style.top = (H / 2) + "px";
+
+  const name = document.createElement("span");
+  name.className = "sphere-name";
+  name.textContent = "Sun";
+  sunEl.appendChild(name);
+
+  const ballWrap = document.createElement("div");
+  ballWrap.className = "sphere-ball-wrap";
+
+  const sunSize = 170;
+  const { canvas: pCanvas, sphere: pSphere } = createPlanetParticleSphere("sun", sunSize, {
+    particleCount: 900,
+    particleSize: 1.1,
+    glowIntensity: 0.75,
+    rotationSpeed: 0.004,
+  });
+  pCanvas.classList.add("sphere-ball");
+  ballWrap.appendChild(pCanvas);
+  sunEl.appendChild(ballWrap);
+
+  spheresContainer.appendChild(sunEl);
+  pSphere.start();
+  activeParticleSpheres["sun"] = pSphere;
+}
+
+// ─── Planet Spheres (on concentric orbits) ───
 function createPlanetSpheres() {
   spheresContainer.innerHTML = "";
   Object.values(activeParticleSpheres).forEach(s => s.destroy());
   activeParticleSpheres = {};
+
+  createSunSphere();
 
   PLANET_CONFIG.forEach(config => {
     const sphere = document.createElement("div");
     sphere.className = "planet-sphere";
     sphere.dataset.planet = config.id;
 
-    const pos = getSpiralScreenPos(config.orbitScale, spiralRotation);
+    const pos = getOrbitScreenPos(config);
     sphere.style.left = pos.x + "px";
     sphere.style.top = pos.y + "px";
 
@@ -731,6 +747,7 @@ recalcBtn.addEventListener("click", () => {
 
 // ─── Init ─────────────────────────────────
 function init() {
+  initOrbitAngles();
   buildGalaxyLayers();
   createPlanetSpheres();
   requestAnimationFrame(drawGalaxy);

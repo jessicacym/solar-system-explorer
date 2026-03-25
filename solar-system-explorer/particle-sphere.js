@@ -226,6 +226,7 @@ class ParticleSphere {
 // ─── Planet Particle Color Palettes ──────────
 // Each planet gets a unique multi-color palette for its particle sphere
 const PLANET_PARTICLE_PALETTES = {
+  sun: ["#ffffff", "#fff8e0", "#ffee99", "#ff8800", "#ff4400", "#ff2200"],
   mercury: ["#b5b5b5", "#8a8a8a", "#d0cfc8", "#706f6a"],
   venus: ["#e8c87a", "#d4a840", "#f0dca0", "#c89830"],
   earth: ["#4a9eff", "#2060c0", "#60d0a0", "#3080e0"],
