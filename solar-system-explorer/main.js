@@ -42,12 +42,13 @@ window.addEventListener("resize", () => {
 resizeCanvas();
 
 // ─── Orbit radius: fit all planets on screen ───
-// Neptune (orbitScale=0.96) must stay within viewport with margin.
+// Neptune has orbitScale=1.0 (log-normalized). maxR = available radius / neptune scale.
 function getMaxR() {
   const W = canvas.width;
   const H = canvas.height;
   const margin = 110;
-  return (Math.min(W, H) / 2 - margin) / 0.96;
+  const neptuneScale = PLANET_CONFIG[PLANET_CONFIG.length - 1].orbitScale;
+  return (Math.min(W, H) / 2 - margin) / neptuneScale;
 }
 
 // ─── Color utility ───────────────────────
@@ -96,13 +97,12 @@ function buildGalaxyLayers() {
   bgCtx.globalCompositeOperation = "source-over";
   bgLayer = bgC;
 
-  // 2. Orbit rings layer — concentric circles, one per planet
-  const nebulaSize = Math.ceil(maxR * 2.4);
+  // 2. Orbit rings layer — same size as viewport so center aligns exactly
   const nC = document.createElement("canvas");
-  nC.width = nebulaSize; nC.height = nebulaSize;
+  nC.width = W; nC.height = H;
   const nCtx = nC.getContext("2d");
-  const ncx = nebulaSize / 2;
-  const ncy = nebulaSize / 2;
+  const ncx = W / 2;
+  const ncy = H / 2;
 
   PLANET_CONFIG.forEach(config => {
     const orbitR = config.orbitScale * maxR;
@@ -126,12 +126,12 @@ function buildGalaxyLayers() {
       nCtx.fillRect(px - glowR, py - glowR, glowR * 2, glowR * 2);
     }
 
-    // Thin orbit ring line
+    // Orbit ring line
     nCtx.globalCompositeOperation = "source-over";
     nCtx.beginPath();
     nCtx.arc(ncx, ncy, orbitR, 0, Math.PI * 2);
-    nCtx.strokeStyle = "rgba(140, 160, 210, 0.13)";
-    nCtx.lineWidth = 0.7;
+    nCtx.strokeStyle = "rgba(160, 185, 230, 0.22)";
+    nCtx.lineWidth = 1.0;
     nCtx.stroke();
   });
 
@@ -163,15 +163,23 @@ function drawGalaxy() {
   ctx.fillStyle = g1;
   ctx.fillRect(0, 0, W, H);
 
-  // Draw static orbit rings layer (no rotation)
+  // Sun warm glow at center
+  const sunGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(W, H) * 0.15);
+  sunGlow.addColorStop(0, "rgba(255, 200, 80, 0.12)");
+  sunGlow.addColorStop(0.5, "rgba(255, 120, 30, 0.05)");
+  sunGlow.addColorStop(1, "transparent");
+  ctx.fillStyle = sunGlow;
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw static orbit rings layer — same size as viewport, draw at (0,0)
   if (nebulaLayer) {
-    ctx.save();
-    ctx.translate(cx, cy);
     ctx.globalCompositeOperation = "lighter";
-    ctx.drawImage(nebulaLayer, -nebulaLayer.width / 2, -nebulaLayer.height / 2);
+    ctx.drawImage(nebulaLayer, 0, 0);
     ctx.globalCompositeOperation = "source-over";
-    ctx.restore();
   }
+
+  // Draw sun as glowing point on canvas
+  drawSun();
 
   updatePlanetOrbitPositions();
   requestAnimationFrame(drawGalaxy);
@@ -200,68 +208,62 @@ function getOrbitScreenPos(config) {
   return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
 }
 
+// ─── Orbital speed constants ─────────────
+// Earth base speed (rad/frame). All planets scale relative to Earth's sideralOrbit.
+const EARTH_ORBIT_DAYS = 365.26;
+const EARTH_BASE_SPEED = 0.0008; // rad/frame for Earth
+// Min speed so outer planets are always visibly moving (~15% of Earth speed)
+const MIN_ORBIT_SPEED = EARTH_BASE_SPEED * 0.18;
+
+function getOrbitSpeed(planetId) {
+  // Prefer live planetData if loaded, else fall back to static data
+  const live = planetData.find(p => p.id === planetId);
+  const period = (live && live.orbitalPeriod) || PLANET_STATIC_DATA[planetId]?.sideralOrbit || EARTH_ORBIT_DAYS;
+  const computed = EARTH_BASE_SPEED * (EARTH_ORBIT_DAYS / Math.abs(period));
+  return Math.max(computed, MIN_ORBIT_SPEED);
+}
+
 // ─── Update planet positions each frame ───
 function updatePlanetOrbitPositions() {
-  // Keep sun pinned to canvas center (handles resize too)
-  const sunEl = spheresContainer.querySelector("[data-planet='sun']");
-  if (sunEl) {
-    sunEl.style.left = (canvas.width / 2) + "px";
-    sunEl.style.top = (canvas.height / 2) + "px";
-  }
-
   PLANET_CONFIG.forEach(config => {
-    // Advance angle (inner planets faster, outer slower — scaled by speedMultiplier)
-    orbitAngles[config.id] += 0.0003 * (config.speedMultiplier || 1);
+    // Advance angle based on real orbital period relative to Earth
+    orbitAngles[config.id] += getOrbitSpeed(config.id);
 
     const el = spheresContainer.querySelector(`[data-planet="${config.id}"]`);
     if (!el) return;
     const pos = getOrbitScreenPos(config);
-    el.style.left = pos.x + "px";
-    el.style.top = pos.y + "px";
+    // Offset by half sphere size so the ball's center sits exactly on the orbit
+    const half = (parseInt(el.dataset.sphereSize) || 80) / 2;
+    el.style.left = (pos.x - half) + "px";
+    el.style.top = (pos.y - half) + "px";
   });
 }
 
-// ─── Sun sphere (center, non-clickable) ───
-function createSunSphere() {
-  const existing = spheresContainer.querySelector("[data-planet='sun']");
-  if (existing) existing.remove();
-  if (activeParticleSpheres["sun"]) {
-    activeParticleSpheres["sun"].destroy();
-    delete activeParticleSpheres["sun"];
-  }
+// ─── Sun: drawn directly on canvas as a glowing point ───
+function drawSun() {
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
 
-  const sunEl = document.createElement("div");
-  sunEl.className = "planet-sphere";
-  sunEl.dataset.planet = "sun";
-  sunEl.style.pointerEvents = "none";
+  // Outer soft glow
+  const outerGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, 38);
+  outerGlow.addColorStop(0, "rgba(255, 220, 80, 0.55)");
+  outerGlow.addColorStop(0.3, "rgba(255, 160, 30, 0.25)");
+  outerGlow.addColorStop(0.7, "rgba(255, 100, 10, 0.08)");
+  outerGlow.addColorStop(1, "transparent");
+  ctx.fillStyle = outerGlow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 38, 0, Math.PI * 2);
+  ctx.fill();
 
-  const W = canvas.width;
-  const H = canvas.height;
-  sunEl.style.left = (W / 2) + "px";
-  sunEl.style.top = (H / 2) + "px";
-
-  const name = document.createElement("span");
-  name.className = "sphere-name";
-  name.textContent = "Sun";
-  sunEl.appendChild(name);
-
-  const ballWrap = document.createElement("div");
-  ballWrap.className = "sphere-ball-wrap";
-
-  const sunSize = 170;
-  const { canvas: pCanvas, sphere: pSphere } = createPlanetParticleSphere("sun", sunSize, {
-    particleCount: 900,
-    particleSize: 1.1,
-    glowIntensity: 0.75,
-    rotationSpeed: 0.004,
-  });
-  pCanvas.classList.add("sphere-ball");
-  ballWrap.appendChild(pCanvas);
-  sunEl.appendChild(ballWrap);
-
-  spheresContainer.appendChild(sunEl);
-  pSphere.start();
-  activeParticleSpheres["sun"] = pSphere;
+  // Bright core
+  const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, 7);
+  core.addColorStop(0, "rgba(255, 255, 230, 1)");
+  core.addColorStop(0.4, "rgba(255, 220, 80, 0.95)");
+  core.addColorStop(1, "rgba(255, 140, 20, 0.6)");
+  ctx.fillStyle = core;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 // ─── Planet Spheres (on concentric orbits) ───
@@ -270,40 +272,42 @@ function createPlanetSpheres() {
   Object.values(activeParticleSpheres).forEach(s => s.destroy());
   activeParticleSpheres = {};
 
-  createSunSphere();
-
   PLANET_CONFIG.forEach(config => {
     const sphere = document.createElement("div");
     sphere.className = "planet-sphere";
     sphere.dataset.planet = config.id;
 
+    // Initial position — will be corrected each frame once sphereSize is stored
     const pos = getOrbitScreenPos(config);
     sphere.style.left = pos.x + "px";
     sphere.style.top = pos.y + "px";
 
-    const subtitle = document.createElement("span");
-    subtitle.className = "sphere-subtitle";
-    subtitle.textContent = config.categoryLabel;
-    sphere.appendChild(subtitle);
-
-    const name = document.createElement("span");
-    name.className = "sphere-name";
-    name.textContent = config.nameEN;
-    sphere.appendChild(name);
-
+    // Ball first — so div top = ball top, allowing precise center alignment
     const ballWrap = document.createElement("div");
     ballWrap.className = "sphere-ball-wrap";
 
-    const sphereSize = 105;
+    const PLANET_VISUAL_SIZES = { mercury:55, venus:75, earth:80, mars:65, jupiter:130, saturn:115, uranus:95, neptune:90 };
+    const sphereSize = PLANET_VISUAL_SIZES[config.id] || 80;
+    sphere.dataset.sphereSize = sphereSize;
     const { canvas: pCanvas, sphere: pSphere } = createPlanetParticleSphere(config.id, sphereSize, {
       particleCount: 600,
       particleSize: 0.9,
       glowIntensity: 0.5,
     });
     pCanvas.classList.add("sphere-ball");
-
     ballWrap.appendChild(pCanvas);
     sphere.appendChild(ballWrap);
+
+    // Labels below the ball
+    const name = document.createElement("span");
+    name.className = "sphere-name";
+    name.textContent = config.nameEN;
+    sphere.appendChild(name);
+
+    const subtitle = document.createElement("span");
+    subtitle.className = "sphere-subtitle";
+    subtitle.textContent = config.categoryLabel;
+    sphere.appendChild(subtitle);
 
     sphere.addEventListener("click", () => {
       const planet = planetData.find(p => p.id === config.id) || config;

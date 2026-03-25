@@ -98,7 +98,7 @@ button {
   gap: 6px;
   cursor: pointer;
   pointer-events: all;
-  transform: translate(-50%, -50%);
+  /* No transform here — JS positions the ball center exactly on the orbit */
   transition: opacity 0.3s var(--ease);
 }
 
@@ -129,7 +129,6 @@ button {
 
 .sphere-ball-wrap {
   position: relative;
-  margin-top: 4px;
 }
 
 .sphere-ball {

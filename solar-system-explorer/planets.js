@@ -3,6 +3,10 @@
 // API data is merged with this config in main.js
 // Source: Le Système Solaire API (https://api.le-systeme-solaire.net)
 
+// orbitScale: visually adjusted — preserves real order (Mercury→Neptune),
+// inner planets spaced apart so spheres don't overlap, outer planets spread outward.
+// Gap between each orbit: ~0.11 for inner, compressed but distinct for outer.
+
 const PLANET_CONFIG = [
   {
     id: "mercury",
@@ -11,7 +15,7 @@ const PLANET_CONFIG = [
     color: "#b5b5b5",
     glowColor: "rgba(181, 181, 181, 0.5)",
     visualRadius: 6,
-    orbitScale: 0.28,
+    orbitScale: 0.14,
     speedMultiplier: 4.15,
     category: "inner",
     gradient: ["#b5b5b5", "#8a8a8a"],
@@ -31,7 +35,7 @@ const PLANET_CONFIG = [
     color: "#e8c87a",
     glowColor: "rgba(232, 200, 122, 0.5)",
     visualRadius: 9,
-    orbitScale: 0.38,
+    orbitScale: 0.25,
     speedMultiplier: 1.62,
     category: "inner",
     gradient: ["#e8c87a", "#d4a840"],
@@ -51,7 +55,7 @@ const PLANET_CONFIG = [
     color: "#4a9eff",
     glowColor: "rgba(74, 158, 255, 0.5)",
     visualRadius: 10,
-    orbitScale: 0.50,
+    orbitScale: 0.36,
     speedMultiplier: 1,
     category: "inner",
     gradient: ["#4a9eff", "#2060c0"],
@@ -71,7 +75,7 @@ const PLANET_CONFIG = [
     color: "#e06030",
     glowColor: "rgba(224, 96, 48, 0.5)",
     visualRadius: 7,
-    orbitScale: 0.62,
+    orbitScale: 0.47,
     speedMultiplier: 0.53,
     category: "inner",
     gradient: ["#e06030", "#a03820"],
@@ -91,7 +95,7 @@ const PLANET_CONFIG = [
     color: "#c88b3a",
     glowColor: "rgba(200, 139, 58, 0.5)",
     visualRadius: 18,
-    orbitScale: 0.72,
+    orbitScale: 0.62,
     speedMultiplier: 0.084,
     category: "gas-giant",
     gradient: ["#c88b3a", "#a06a20"],
@@ -111,7 +115,7 @@ const PLANET_CONFIG = [
     color: "#e4d191",
     glowColor: "rgba(228, 209, 145, 0.5)",
     visualRadius: 15,
-    orbitScale: 0.81,
+    orbitScale: 0.74,
     speedMultiplier: 0.034,
     hasRings: true,
     category: "gas-giant",
@@ -132,7 +136,7 @@ const PLANET_CONFIG = [
     color: "#7de8e8",
     glowColor: "rgba(125, 232, 232, 0.5)",
     visualRadius: 12,
-    orbitScale: 0.89,
+    orbitScale: 0.87,
     speedMultiplier: 0.012,
     category: "ice-giant",
     gradient: ["#7de8e8", "#40b0b0"],
@@ -152,7 +156,7 @@ const PLANET_CONFIG = [
     color: "#3f54ba",
     glowColor: "rgba(63, 84, 186, 0.5)",
     visualRadius: 12,
-    orbitScale: 0.96,
+    orbitScale: 0.97,
     speedMultiplier: 0.006,
     category: "ice-giant",
     gradient: ["#3f54ba", "#2a3880"],
