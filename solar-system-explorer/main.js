@@ -223,6 +223,291 @@ function getOrbitSpeed(planetId) {
   return Math.max(computed, MIN_ORBIT_SPEED);
 }
 
+// ─── Visibility: dim planets not above horizon ───
+function applyVisibilityStyles() {
+  // Only apply dimming if we have real position data from the API
+  const hasData = Object.keys(positionData).length > 0;
+  PLANET_CONFIG.forEach(config => {
+    const el = spheresContainer.querySelector(`[data-planet="${config.id}"]`);
+    if (!el) return;
+    if (!hasData) {
+      // No API data yet — show everything at full brightness
+      el.style.opacity = "1";
+      el.style.filter = "";
+      const nameEl = el.querySelector(".sphere-name");
+      if (nameEl) nameEl.style.color = "";
+      const subEl = el.querySelector(".sphere-subtitle");
+      if (subEl) subEl.style.color = "";
+      return;
+    }
+    const pos = positionData[config.id];
+    const visible = pos && !isNaN(parseFloat(pos.alt)) && parseFloat(pos.alt) >= 0;
+    // Visible: full brightness; below horizon: very dim grey
+    el.style.opacity = visible ? "1" : "0.35";
+    el.style.filter = visible ? "" : "grayscale(0.8) brightness(0.6)";
+    const nameEl = el.querySelector(".sphere-name");
+    if (nameEl) nameEl.style.color = visible ? "" : "rgba(150,150,150,0.65)";
+    const subEl = el.querySelector(".sphere-subtitle");
+    if (subEl) subEl.style.color = visible ? "" : "rgba(110,110,110,0.5)";
+  });
+}
+
+// ─── Local View ──────────────────────────
+// Mirrors Sky & Telescope "Selected View": realistic horizon silhouette,
+// planet size + brightness from NASA Horizons apparent magnitude (quantity 9).
+const localViewCanvas = document.getElementById("local-view-canvas");
+let _localViewScaled = false;
+const LV_W = 520, LV_H = 220;
+
+// Map apparent magnitude → { radius, glowRadius, alpha }
+// Bright planets (Venus mag ~-4) get larger dots; dim ones (Neptune mag ~8) get small faint dots.
+// Naked-eye limit ≈ mag 6. We clamp display to that range.
+function magToVisual(mag) {
+  if (mag === null || mag === undefined || !isFinite(mag)) mag = 2; // default if unavailable
+  // Clamp to naked-eye range: -5 (Venus near max) to 6 (limit of human eye)
+  const clamped = Math.max(-5, Math.min(6, mag));
+  // t=1 at mag -5 (brightest), t=0 at mag 6 (dimmest)
+  const t = 1 - (clamped + 5) / 11;
+  // Smoothstep for perceptual curve — bright planets are much more prominent
+  const ts = t * t * (3 - 2 * t);
+  const radius = 1.0 + ts * 5.0;          // 1–6 px
+  const glowR  = radius * (2.0 + ts * 2.0); // tighter for dim, wider for bright
+  const alpha  = 0.35 + ts * 0.65;          // 0.35–1.0
+  return { radius, glowR, alpha };
+}
+
+function drawLocalView() {
+  if (!localViewCanvas) return;
+  const lc = localViewCanvas.getContext("2d");
+  const W = LV_W, H = LV_H;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  if (!_localViewScaled) {
+    localViewCanvas.width = W * dpr;
+    localViewCanvas.height = H * dpr;
+    localViewCanvas.style.width = W + "px";
+    localViewCanvas.style.height = H + "px";
+    lc.scale(dpr, dpr);
+    _localViewScaled = true;
+  }
+
+  lc.clearRect(0, 0, W, H);
+
+  // ── Sky gradient: pitch black at zenith, deep navy near horizon ──
+  const skyGrad = lc.createLinearGradient(0, 0, 0, H);
+  skyGrad.addColorStop(0,    "#010306");
+  skyGrad.addColorStop(0.5,  "#04101e");
+  skyGrad.addColorStop(1,    "#0c1d35");
+  lc.fillStyle = skyGrad;
+  lc.fillRect(0, 0, W, H);
+
+  const horizonY = H * 0.70;
+  const skyH = horizonY;
+
+  // ── Deterministic background star field ──
+  const rng = (n) => Math.abs(Math.sin(n * 127.3 + 91.5));
+  // Dim background stars
+  for (let i = 0; i < 120; i++) {
+    const sx = rng(i * 3.1) * W;
+    const sy = rng(i * 7.7) * skyH * 0.95;
+    const sa = rng(i * 13.3) * 0.28 + 0.05;
+    const sr = rng(i * 5.9) * 0.55 + 0.15;
+    lc.beginPath();
+    lc.arc(sx, sy, sr, 0, Math.PI * 2);
+    lc.fillStyle = `rgba(200,215,255,${sa})`;
+    lc.fill();
+  }
+  // Brighter named stars
+  for (let i = 0; i < 15; i++) {
+    const sx = rng(i * 41.7 + 5) * W;
+    const sy = rng(i * 19.3 + 2) * skyH * 0.88;
+    const sr = rng(i * 3.7) * 0.8 + 0.6;
+    const sa = rng(i * 8.1) * 0.35 + 0.3;
+    lc.beginPath();
+    lc.arc(sx, sy, sr, 0, Math.PI * 2);
+    lc.fillStyle = `rgba(230,238,255,${sa})`;
+    lc.fill();
+    // tiny glow
+    const sg = lc.createRadialGradient(sx, sy, 0, sx, sy, sr * 3);
+    sg.addColorStop(0, `rgba(200,215,255,${sa * 0.4})`);
+    sg.addColorStop(1, "transparent");
+    lc.fillStyle = sg;
+    lc.fillRect(sx - sr * 3, sy - sr * 3, sr * 6, sr * 6);
+  }
+
+  // ── Ground fill ──
+  lc.fillStyle = "#04060c";
+  lc.fillRect(0, horizonY, W, H - horizonY);
+
+  // ── Treeline silhouette (left 2/3 — natural landscape) ──
+  lc.fillStyle = "#060910";
+  lc.beginPath();
+  lc.moveTo(0, horizonY);
+  // Rolling tree canopy using triangular pine shapes approximated by curves
+  const trees = [
+    [8, 26], [24, 18], [40, 30], [55, 20], [70, 32], [88, 16],
+    [105, 28], [118, 14], [135, 24], [150, 18], [165, 30], [180, 12],
+    [195, 22], [210, 16], [225, 26], [240, 14], [255, 20], [270, 28],
+    [285, 12], [300, 18], [315, 24], [330, 10],
+  ];
+  trees.forEach(([tx, th], idx) => {
+    if (idx === 0) {
+      lc.moveTo(tx - 10, horizonY);
+    }
+    // Pine triangle peak
+    lc.lineTo(tx - 6, horizonY - th * 0.4);
+    lc.lineTo(tx,     horizonY - th);
+    lc.lineTo(tx + 6, horizonY - th * 0.4);
+    lc.lineTo(tx + 10, horizonY);
+  });
+  lc.lineTo(340, horizonY);
+  lc.lineTo(0, horizonY);
+  lc.closePath();
+  lc.fill();
+
+  // ── Urban silhouette (right 1/3 — buildings + construction crane) ──
+  lc.fillStyle = "#050810";
+  // Buildings
+  const bldgs = [
+    {x:340, w:18, h:24}, {x:360, w:12, h:36}, {x:374, w:20, h:20},
+    {x:396, w:10, h:30}, {x:408, w:16, h:16}, {x:426, w:22, h:26},
+    {x:450, w:12, h:38}, {x:464, w:18, h:18}, {x:484, w:10, h:28},
+    {x:496, w:24, h:22},
+  ];
+  bldgs.forEach(b => {
+    lc.fillRect(b.x, horizonY - b.h, b.w, b.h + 4);
+    // Antenna on tall buildings
+    if (b.h >= 30) {
+      lc.fillRect(b.x + b.w / 2 - 0.6, horizonY - b.h - 8, 1.2, 9);
+    }
+  });
+  // Construction crane (iconic Sky & Telescope silhouette detail)
+  const craneX = 455, craneBase = horizonY, craneH = 55;
+  lc.fillRect(craneX - 1.5, craneBase - craneH, 3, craneH);       // mast
+  lc.fillRect(craneX - 28, craneBase - craneH + 2, 44, 2.5);      // jib (horizontal arm)
+  lc.fillRect(craneX + 14, craneBase - craneH + 2, 2, 18);        // counter-jib support
+  lc.fillRect(craneX - 28, craneBase - craneH + 4, 1.5, 14);      // hook line
+
+  // ── Atmospheric horizon glow ──
+  const hGlow = lc.createLinearGradient(0, horizonY - 22, 0, horizonY + 4);
+  hGlow.addColorStop(0, "rgba(30, 75, 160, 0.09)");
+  hGlow.addColorStop(1, "transparent");
+  lc.fillStyle = hGlow;
+  lc.fillRect(0, horizonY - 22, W, 26);
+
+  // ── Horizon line (very subtle) ──
+  lc.beginPath();
+  lc.moveTo(0, horizonY); lc.lineTo(W, horizonY);
+  lc.strokeStyle = "rgba(50, 85, 150, 0.3)";
+  lc.lineWidth = 0.5;
+  lc.stroke();
+
+  // ── No data state ──
+  if (Object.keys(positionData).length === 0) {
+    lc.font = "12px 'Instrument Sans',sans-serif";
+    lc.fillStyle = "rgba(110,150,210,0.5)";
+    lc.textAlign = "center";
+    lc.textBaseline = "middle";
+    lc.fillText("Enter your location to see visible planets", W / 2, skyH * 0.42);
+    return;
+  }
+
+  // ── Check for any visible planet ──
+  const hasVisible = PLANET_CONFIG.some(c => {
+    const p = positionData[c.id];
+    return p && !isNaN(parseFloat(p.alt)) && parseFloat(p.alt) >= 0;
+  });
+  if (!hasVisible) {
+    lc.font = "11px 'Instrument Sans',sans-serif";
+    lc.fillStyle = "rgba(100,135,195,0.42)";
+    lc.textAlign = "center";
+    lc.textBaseline = "middle";
+    lc.fillText("No planets above the horizon right now", W / 2, skyH * 0.42);
+  }
+
+  // ── Draw planets above horizon, sized + brightened by apparent magnitude ──
+  PLANET_CONFIG.forEach(config => {
+    const pdata = positionData[config.id];
+    if (!pdata) return;
+    const alt = parseFloat(pdata.alt);
+    const az  = parseFloat(pdata.az);
+    if (isNaN(alt) || isNaN(az) || alt < 0) return;
+
+    // Map az (0–360°) → x across canvas width
+    // Map alt (0–90°) → y from horizonY up toward top
+    const px = (az / 360) * W;
+    const py = horizonY - (alt / 90) * (skyH - 20);
+    const cx = Math.max(12, Math.min(W - 12, px));
+    const cy = Math.max(16, Math.min(horizonY - 12, py));
+
+    const { radius, glowR, alpha } = magToVisual(pdata.mag);
+
+    // Atmospheric reddening: planets near horizon look warmer/redder
+    const horizonTint = Math.max(0, 1 - alt / 12); // fades in below 12°
+
+    // Outer coloured glow (planet tint from config color)
+    const colorGlow = lc.createRadialGradient(cx, cy, 0, cx, cy, glowR);
+    const glowA = alpha * 0.5;
+    colorGlow.addColorStop(0,   config.color + Math.min(255, Math.round(glowA * 255)).toString(16).padStart(2, "0"));
+    colorGlow.addColorStop(0.6, config.color + "30");
+    colorGlow.addColorStop(1,   "transparent");
+    lc.fillStyle = colorGlow;
+    lc.beginPath();
+    lc.arc(cx, cy, glowR, 0, Math.PI * 2);
+    lc.fill();
+
+    // Warm horizon tint overlay for low-altitude planets
+    if (horizonTint > 0.05) {
+      const warmGlow = lc.createRadialGradient(cx, cy, 0, cx, cy, glowR * 0.75);
+      warmGlow.addColorStop(0, `rgba(255,140,50,${horizonTint * alpha * 0.4})`);
+      warmGlow.addColorStop(1, "transparent");
+      lc.fillStyle = warmGlow;
+      lc.beginPath();
+      lc.arc(cx, cy, glowR * 0.75, 0, Math.PI * 2);
+      lc.fill();
+    }
+
+    // White-hot core halo (how planets appear to the naked eye)
+    const haloR = radius * 2.5;
+    const coreGlow = lc.createRadialGradient(cx, cy, 0, cx, cy, haloR);
+    coreGlow.addColorStop(0,   `rgba(255,255,255,${alpha * 0.95})`);
+    coreGlow.addColorStop(0.45, `rgba(255,255,255,${alpha * 0.35})`);
+    coreGlow.addColorStop(1,   "transparent");
+    lc.fillStyle = coreGlow;
+    lc.beginPath();
+    lc.arc(cx, cy, haloR, 0, Math.PI * 2);
+    lc.fill();
+
+    // Solid planet point
+    lc.beginPath();
+    lc.arc(cx, cy, radius, 0, Math.PI * 2);
+    lc.fillStyle = `rgba(255,255,255,${alpha})`;
+    lc.fill();
+
+    // Label: place above dot, edge-aware horizontal alignment
+    const edgeLeft  = cx < 50;
+    const edgeRight = cx > W - 50;
+    const textAlign = edgeLeft ? "left" : edgeRight ? "right" : "center";
+    const lx        = edgeLeft  ? cx + radius + 5
+                    : edgeRight ? cx - radius - 5
+                    : cx;
+
+    lc.font = `600 ${radius >= 3.5 ? 9 : 8}px 'Instrument Sans',sans-serif`;
+    lc.fillStyle = `rgba(210,230,255,${Math.min(1, alpha + 0.1)})`;
+    lc.textAlign  = textAlign;
+    lc.textBaseline = "bottom";
+    lc.fillText(config.nameEN, lx, cy - radius - 3);
+
+    // Magnitude badge only for bright planets (mag < 3) — shown below the dot
+    if (pdata.mag !== null && pdata.mag < 3) {
+      lc.font = "7px 'SF Mono','Fira Code',monospace";
+      lc.fillStyle = `rgba(160,195,255,${alpha * 0.55})`;
+      lc.textBaseline = "top";
+      lc.fillText(`${pdata.mag >= 0 ? "+" : ""}${pdata.mag.toFixed(1)}`, lx, cy + radius + 3);
+    }
+  });
+}
+
 // ─── Update planet positions each frame ───
 function updatePlanetOrbitPositions() {
   PLANET_CONFIG.forEach(config => {
@@ -237,6 +522,7 @@ function updatePlanetOrbitPositions() {
     el.style.left = (pos.x - half) + "px";
     el.style.top = (pos.y - half) + "px";
   });
+  applyVisibilityStyles();
 }
 
 // ─── Sun: drawn directly on canvas as a glowing point ───
@@ -504,7 +790,7 @@ async function fetchHorizonsData(planetId, lat, lon, elev, datetime) {
     START_TIME: `'${datetime}'`,
     STOP_TIME:  `'${stopTime}'`,
     STEP_SIZE:  "'1 d'",
-    QUANTITIES: "'1,4,20'",
+    QUANTITIES: "'1,4,9,20'",
     MAKE_EPHEM: "'YES'",
   });
 
@@ -537,14 +823,50 @@ async function fetchHorizonsData(planetId, lat, lon, elev, datetime) {
   const line  = text.substring(soe + 5, eoe).trim().split("\n")[0].trim();
   const parts = line.split(/\s+/);
 
+  // Debug: log parts to find actual column positions
+  console.log(`Horizons raw parts for ${planetId}:`, parts);
+
+  // Horizons QUANTITIES 1,4,9,20 — RA/DEC in hms/dms, then Az/El, APmag, S-brt, delta
+  // [0]=date [1]=time [2-4]=RA hh mm ss.ss [5-7]=DEC ±dd mm ss.s
+  // But DEC sign may merge with degrees: "+18 09 25.7" → parts[5]="+18"
+  // Safe extraction: find Az/El/mag by scanning for the numeric Az column
+  // Az is always in range 0–360, Alt in -90 to 90, after the DEC fields
   const ra  = `${parts[2]} ${parts[3]} ${parts[4]}`;
+
+  // DEC: parts[5] may be "+18" or "-05", parts[6]=mm, parts[7]=ss
   const dec = `${parts[5]} ${parts[6]} ${parts[7]}`;
-  const az  = parseFloat(parts[8]).toFixed(4) + "°";
-  const alt = parseFloat(parts[9]).toFixed(4) + "°";
-  const deltaAU = parseFloat(parts[10]);
+
+  // Find Az/Alt: scan from parts[8] onward for first value in 0–360 range
+  let azIdx = -1;
+  for (let i = 8; i < parts.length - 1; i++) {
+    const v = parseFloat(parts[i]);
+    const v2 = parseFloat(parts[i + 1]);
+    // Az is 0–360, Alt is -90 to 90, and they appear consecutively
+    if (!isNaN(v) && v >= 0 && v <= 360 && !isNaN(v2) && v2 >= -90 && v2 <= 90) {
+      azIdx = i;
+      break;
+    }
+  }
+  if (azIdx === -1) throw new Error(`Cannot find Az/Alt columns for ${planetId}. parts=${JSON.stringify(parts)}`);
+
+  const azVal  = parseFloat(parts[azIdx]);
+  const altVal = parseFloat(parts[azIdx + 1]);
+  const magVal = parseFloat(parts[azIdx + 2]);   // APmag immediately after Alt
+  // delta (AU) is a few columns later — find first value > 0.1 after mag
+  let deltaAU = NaN;
+  for (let i = azIdx + 3; i < parts.length; i++) {
+    const v = parseFloat(parts[i]);
+    if (!isNaN(v) && v > 0.1 && v < 100) { deltaAU = v; break; }
+  }
+  if (isNaN(deltaAU)) deltaAU = 1;
+
+  const az  = azVal.toFixed(4) + "°";
+  const alt = altVal.toFixed(4) + "°";
+  const mag = isNaN(magVal) ? null : magVal;
 
   return {
     ra, dec, az, alt,
+    mag,
     distEarthAU: deltaAU.toFixed(5),
     distEarthKm: Math.round(deltaAU * 149597870.7),
   };
@@ -605,7 +927,7 @@ async function fetchAllData(lat, lon, elev, zone, datetime) {
     if (!r) return;
     planetData[i].distEarthAU = r.distEarthAU;
     planetData[i].distEarthKm = r.distEarthKm;
-    positionData[PLANET_IDS[i]] = { ra: r.ra, dec: r.dec, az: r.az, alt: r.alt };
+    positionData[PLANET_IDS[i]] = { ra: r.ra, dec: r.dec, az: r.az, alt: r.alt, mag: r.mag };
   });
 
   lastFetchTime = Date.now();
@@ -682,6 +1004,7 @@ async function autoRefresh() {
   const datetime = now.toISOString().slice(0, 19);
   try {
     await fetchAllData(lat, lon, elev, zone, datetime);
+    drawLocalView();
     console.log("Auto-refresh complete");
   } catch (err) {
     console.warn("Auto-refresh failed:", err.message);
@@ -703,6 +1026,21 @@ function showGalaxyView() {
   settingsOverlay.classList.add("hidden");
   spheresContainer.style.display = "";
   bottomBar.style.display = "";
+  const localView = document.getElementById("local-view");
+  if (localView) localView.style.display = "";
+  if (observerSettings) {
+    const coordEl = document.getElementById("local-view-coords");
+    if (coordEl) {
+      const latStr = observerSettings.lat >= 0
+        ? observerSettings.lat.toFixed(2) + "°N"
+        : Math.abs(observerSettings.lat).toFixed(2) + "°S";
+      const lonStr = observerSettings.lon >= 0
+        ? observerSettings.lon.toFixed(2) + "°E"
+        : Math.abs(observerSettings.lon).toFixed(2) + "°W";
+      coordEl.textContent = `${latStr}  ${lonStr}`;
+    }
+  }
+  drawLocalView();
   startRefreshCycle();
 }
 
@@ -725,6 +1063,7 @@ settingsForm.addEventListener("submit", async (e) => {
 
   try {
     await fetchAllData(lat, lon, elev, zone, datetime);
+    drawLocalView();
 
     const hasPositions = Object.keys(positionData).length > 0;
     settingsStatus.textContent = hasPositions

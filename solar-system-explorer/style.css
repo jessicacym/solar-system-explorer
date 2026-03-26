@@ -98,7 +98,7 @@ button {
   gap: 6px;
   cursor: pointer;
   pointer-events: all;
-  transform: translate(-50%, -50%);
+  /* No transform here — JS positions the ball center exactly on the orbit */
   transition: opacity 0.3s var(--ease);
 }
 
@@ -129,7 +129,6 @@ button {
 
 .sphere-ball-wrap {
   position: relative;
-  margin-top: 4px;
 }
 
 .sphere-ball {
@@ -846,4 +845,52 @@ canvas.cat-planet-dot {
   .settings-actions {
     flex-direction: column;
   }
+}
+
+/* ─── Local View ─── */
+.local-view {
+  position: fixed;
+  bottom: 72px;
+  left: 20px;
+  z-index: 54;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(80, 120, 180, 0.18);
+  box-shadow:
+    0 8px 40px rgba(0, 0, 20, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.025);
+  backdrop-filter: blur(2px);
+}
+
+.local-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 13px;
+  background: rgba(4, 8, 18, 0.94);
+  border-bottom: 1px solid rgba(80, 120, 180, 0.12);
+}
+
+.local-view-title {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  color: rgba(150, 185, 235, 0.75);
+  text-transform: uppercase;
+}
+
+.local-view-coords {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  color: rgba(110, 145, 190, 0.48);
+  letter-spacing: 0.06em;
+}
+
+#local-view-canvas {
+  display: block;
+  width: 520px;
+  height: 220px;
 }
