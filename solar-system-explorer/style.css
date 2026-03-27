@@ -104,27 +104,9 @@ button {
     filter 0.4s var(--ease);
 }
 
-/* Below-horizon planet: dimmed but still clearly present */
-.planet-sphere.below-horizon .sphere-ball-wrap::after {
-  content: "";
-  position: absolute;
-  inset: 6px;
-  border-radius: 50%;
-  border: 1.5px dashed rgba(180, 190, 220, 0.35);
-  pointer-events: none;
-  animation: horizon-pulse 3s ease-in-out infinite;
-}
-
-@keyframes horizon-pulse {
-  0%,
-  100% {
-    opacity: 0.4;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.06);
-  }
+/* ── Visible planet: enhanced glow to stand out ── */
+.planet-sphere.above-horizon .sphere-ball-wrap {
+  filter: drop-shadow(0 0 6px rgba(200, 220, 255, 0.35));
 }
 
 .planet-sphere:hover {
@@ -132,12 +114,8 @@ button {
 }
 
 .planet-sphere.below-horizon:hover {
-  opacity: 0.85 !important;
-  filter: grayscale(0.3) brightness(0.88) !important;
-}
-
-.planet-sphere.below-horizon:hover .sphere-ball-wrap::after {
-  opacity: 0;
+  opacity: 0.75 !important;
+  filter: grayscale(0.3) brightness(0.78) !important;
 }
 
 .sphere-subtitle {

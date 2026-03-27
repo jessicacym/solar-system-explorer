@@ -233,6 +233,7 @@ function applyVisibilityStyles() {
     if (!hasData) {
       // No API data yet — show everything at full brightness
       el.classList.remove("below-horizon");
+      el.classList.remove("above-horizon");
       el.style.opacity = "1";
       el.style.filter = "";
       const nameEl = el.querySelector(".sphere-name");
@@ -243,15 +244,15 @@ function applyVisibilityStyles() {
     }
     const pos = positionData[config.id];
     const visible = pos && !isNaN(parseFloat(pos.alt)) && parseFloat(pos.alt) >= 0;
-    // Visible: full brightness; below horizon: dimmed but still recognisable
-    // Values tuned for Mac Retina — avoid over-dimming with combined opacity+filter
+    // Visible: boosted glow; below horizon: noticeably dimmed but not invisible
     el.classList.toggle("below-horizon", !visible);
-    el.style.opacity = visible ? "1" : "0.55";
-    el.style.filter = visible ? "" : "grayscale(0.55) brightness(0.75)";
+    el.classList.toggle("above-horizon", visible);
+    el.style.opacity = visible ? "1" : "0.45";
+    el.style.filter = visible ? "brightness(1.1)" : "grayscale(0.5) brightness(0.7)";
     const nameEl = el.querySelector(".sphere-name");
-    if (nameEl) nameEl.style.color = visible ? "" : "rgba(180,180,190,0.8)";
+    if (nameEl) nameEl.style.color = visible ? "" : "rgba(170,175,190,0.7)";
     const subEl = el.querySelector(".sphere-subtitle");
-    if (subEl) subEl.style.color = visible ? "" : "rgba(155,155,165,0.7)";
+    if (subEl) subEl.style.color = visible ? "" : "rgba(140,145,160,0.6)";
   });
 }
 
