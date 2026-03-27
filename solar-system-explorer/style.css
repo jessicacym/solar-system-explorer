@@ -460,7 +460,7 @@ canvas.cat-planet-dot {
   top: 20px;
   right: 20px;
   width: 320px;
-  max-height: calc(100vh - 40px);
+  max-height: calc(100vh - 480px);
   background: rgba(9, 11, 17, 0.95);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -592,12 +592,13 @@ canvas.cat-planet-dot {
   color: var(--text-secondary);
 }
 
-/* ─── Sky Radar Chart (fixed bottom-right, shifts when sidebar open) ─── */
+/* ─── Sky Radar Chart (fixed bottom-right, aligned with sidebar) ─── */
 .sky-radar {
   position: fixed;
-  bottom: 72px;
+  bottom: 20px;
   right: 20px;
-  z-index: 54;
+  z-index: 55;
+  width: 384px;
   display: flex;
   flex-direction: column;
   border-radius: 10px;
@@ -607,12 +608,6 @@ canvas.cat-planet-dot {
     0 8px 40px rgba(0, 0, 20, 0.7),
     0 0 0 1px rgba(255, 255, 255, 0.025);
   backdrop-filter: blur(2px);
-  transition: right 0.4s var(--ease);
-}
-
-/* When sidebar is open, push radar left to avoid overlap */
-.sky-radar.sidebar-open {
-  right: 360px;
 }
 
 .sky-radar-header {
@@ -642,8 +637,8 @@ canvas.cat-planet-dot {
 
 #sky-radar-canvas {
   display: block;
-  width: 520px;
-  height: 520px;
+  width: 384px;
+  height: 384px;
 }
 
 /* ─── Responsive ─── */
@@ -689,17 +684,12 @@ canvas.cat-planet-dot {
   .sky-radar {
     right: 10px;
     bottom: 60px;
+    width: 200px;
   }
 
   #sky-radar-canvas {
-    width: 280px;
-    height: 280px;
-  }
-
-  .sky-radar.sidebar-open {
-    right: 10px;
-    bottom: auto;
-    top: 10px;
+    width: 200px;
+    height: 200px;
   }
 
   .sphere-name {
