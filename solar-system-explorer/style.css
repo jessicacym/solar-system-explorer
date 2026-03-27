@@ -62,10 +62,10 @@ button {
 
 @media (max-width: 768px) {
   .site-title {
-    font-size: 32px;
-    top: 16px;
-    left: 16px;
-    letter-spacing: 0.08em;
+    font-size: 20px;
+    top: 10px;
+    left: 12px;
+    letter-spacing: 0.06em;
   }
 }
 
@@ -689,16 +689,20 @@ canvas.cat-planet-dot {
     gap: 16px;
   }
 
-  /* ── Spheres ── */
+  /* ── Spheres: compact for mobile ── */
   .sphere-name {
-    font-size: 11px;
+    font-size: 10px;
   }
   .sphere-subtitle {
-    font-size: 7px;
+    font-size: 6px;
+    letter-spacing: 0.08em;
   }
   .sphere-ball {
-    width: 70px;
-    height: 70px;
+    width: 45px;
+    height: 45px;
+  }
+  .planet-sphere {
+    gap: 2px;
   }
 
   /* ── Sky Radar & Local View: HIDDEN by default, toggled via JS ── */

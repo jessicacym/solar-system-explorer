@@ -46,7 +46,9 @@ resizeCanvas();
 function getMaxR() {
   const W = canvas.width;
   const H = canvas.height;
-  const margin = 110;
+  // On mobile (portrait): use smaller dimension but reduce margin
+  const isMobileSize = Math.min(W, H) < 900;
+  const margin = isMobileSize ? 40 : 110;
   const neptuneScale = PLANET_CONFIG[PLANET_CONFIG.length - 1].orbitScale;
   return (Math.min(W, H) / 2 - margin) / neptuneScale;
 }
@@ -577,7 +579,8 @@ function createPlanetSpheres() {
     ballWrap.className = "sphere-ball-wrap";
 
     const PLANET_VISUAL_SIZES = { mercury:55, venus:75, earth:80, mars:65, jupiter:130, saturn:115, uranus:95, neptune:90 };
-    const sphereSize = PLANET_VISUAL_SIZES[config.id] || 80;
+    const mobileScale = Math.min(window.innerWidth, window.innerHeight) < 500 ? 0.5 : 1;
+    const sphereSize = Math.round((PLANET_VISUAL_SIZES[config.id] || 80) * mobileScale);
     sphere.dataset.sphereSize = sphereSize;
     const { canvas: pCanvas, sphere: pSphere } = createPlanetParticleSphere(config.id, sphereSize, {
       particleCount: 600,
