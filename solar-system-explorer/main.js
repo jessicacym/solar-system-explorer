@@ -263,6 +263,13 @@ function applyVisibilityStyles() {
 // planet size + brightness from NASA Horizons apparent magnitude (quantity 9).
 const localViewCanvas = document.getElementById("local-view-canvas");
 let _localViewScaled = false;
+let _lastLVWidth = 0;
+function getLVSize() {
+  const mobile = window.innerWidth <= 768;
+  const w = mobile ? Math.min(window.innerWidth - 40, 400) : 520;
+  const h = mobile ? Math.round(w * 220 / 520) : 220;
+  return { w, h };
+}
 const LV_W = 520, LV_H = 220;
 
 // Map apparent magnitude → { radius, glowRadius, alpha }
@@ -285,16 +292,25 @@ function magToVisual(mag) {
 function drawLocalView() {
   if (!localViewCanvas) return;
   const lc = localViewCanvas.getContext("2d");
+  // Always use 520×220 logical size; scale canvas to fit mobile display
   const W = LV_W, H = LV_H;
+  const { w: displayW, h: displayH } = getLVSize();
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-  if (!_localViewScaled) {
+  if (!_localViewScaled || _lastLVWidth !== displayW) {
     localViewCanvas.width = W * dpr;
     localViewCanvas.height = H * dpr;
-    localViewCanvas.style.width = W + "px";
-    localViewCanvas.style.height = H + "px";
-    lc.scale(dpr, dpr);
+    // On mobile: let CSS handle display sizing; on desktop: set inline
+    if (window.innerWidth <= 768) {
+      localViewCanvas.style.width = "";
+      localViewCanvas.style.height = "";
+    } else {
+      localViewCanvas.style.width = displayW + "px";
+      localViewCanvas.style.height = displayH + "px";
+    }
+    lc.setTransform(dpr, 0, 0, dpr, 0, 0);
     _localViewScaled = true;
+    _lastLVWidth = displayW;
   }
 
   lc.clearRect(0, 0, W, H);
