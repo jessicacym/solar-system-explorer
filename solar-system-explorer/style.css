@@ -592,7 +592,7 @@ canvas.cat-planet-dot {
   color: var(--text-secondary);
 }
 
-/* ─── Sky Radar Chart (fixed bottom-right) ─── */
+/* ─── Sky Radar Chart (fixed bottom-right, shifts when sidebar open) ─── */
 .sky-radar {
   position: fixed;
   bottom: 72px;
@@ -607,6 +607,12 @@ canvas.cat-planet-dot {
     0 8px 40px rgba(0, 0, 20, 0.7),
     0 0 0 1px rgba(255, 255, 255, 0.025);
   backdrop-filter: blur(2px);
+  transition: right 0.4s var(--ease);
+}
+
+/* When sidebar is open, push radar left to avoid overlap */
+.sky-radar.sidebar-open {
+  right: 360px;
 }
 
 .sky-radar-header {
@@ -678,6 +684,22 @@ canvas.cat-planet-dot {
     width: calc(100% - 20px);
     top: 48px;
     left: 10px;
+  }
+
+  .sky-radar {
+    right: 10px;
+    bottom: 60px;
+  }
+
+  #sky-radar-canvas {
+    width: 280px;
+    height: 280px;
+  }
+
+  .sky-radar.sidebar-open {
+    right: 10px;
+    bottom: auto;
+    top: 10px;
   }
 
   .sphere-name {

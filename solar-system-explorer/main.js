@@ -1044,10 +1044,12 @@ function openDetailPanel(planet) {
   detailPanel.hidden = false;
   detailPanel.offsetHeight;
   detailPanel.classList.add("open");
+  skyRadarEl.classList.add("sidebar-open");
 }
 
 function closeDetailPanel() {
   detailPanel.classList.remove("open");
+  skyRadarEl.classList.remove("sidebar-open");
   planetStatsPanel.style.display = "none";
   _radarHighlight = null;
   setTimeout(() => {
