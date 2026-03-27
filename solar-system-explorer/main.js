@@ -765,7 +765,8 @@ const PLANET_SHORT = {
 
 function drawSkyRadar() {
   if (_radarAnimId) cancelAnimationFrame(_radarAnimId);
-  skyRadarEl.style.display = "";
+  // Don't force display on mobile — toggles handle visibility
+  if (window.innerWidth > 768) skyRadarEl.style.display = "";
 
   const W = skyRadarCanvas.width;   // 1040 (2x retina for 520px CSS)
   const H = skyRadarCanvas.height;
@@ -1351,8 +1352,19 @@ function showGalaxyView() {
   settingsOverlay.classList.add("hidden");
   spheresContainer.style.display = "";
   bottomBar.style.display = "";
+
   const localView = document.getElementById("local-view");
-  if (localView) localView.style.display = "";
+  const mobile = window.innerWidth <= 768;
+
+  // On mobile: panels start hidden (toggled via bottom bar buttons)
+  // On desktop: panels show immediately
+  if (localView) localView.style.display = mobile ? "none" : "";
+  skyRadarEl.style.display = mobile ? "none" : "";
+
+  // Mark panels as ready so mobile toggles can show them
+  localView?.classList.add("data-ready");
+  skyRadarEl.classList.add("data-ready");
+
   if (observerSettings) {
     const coordEl = document.getElementById("local-view-coords");
     if (coordEl) {
@@ -1422,8 +1434,11 @@ const toggleLocalBtn = document.getElementById("toggle-local");
 function isMobile() { return window.innerWidth <= 768; }
 
 function closeMobilePanels() {
+  const lv = document.getElementById("local-view");
+  // Hide panels on mobile
+  skyRadarEl.style.display = "none";
   skyRadarEl.classList.remove("mobile-show");
-  document.getElementById("local-view").classList.remove("mobile-show");
+  if (lv) { lv.style.display = "none"; lv.classList.remove("mobile-show"); }
   mobileBackdrop.classList.remove("visible");
   toggleRadarBtn.classList.remove("active");
   toggleLocalBtn.classList.remove("active");
@@ -1433,7 +1448,8 @@ toggleRadarBtn.addEventListener("click", () => {
   if (!isMobile()) return;
   const isOpen = skyRadarEl.classList.contains("mobile-show");
   closeMobilePanels();
-  if (!isOpen) {
+  if (!isOpen && skyRadarEl.classList.contains("data-ready")) {
+    skyRadarEl.style.display = "flex";
     skyRadarEl.classList.add("mobile-show");
     mobileBackdrop.classList.add("visible");
     toggleRadarBtn.classList.add("active");
@@ -1445,7 +1461,8 @@ toggleLocalBtn.addEventListener("click", () => {
   const lv = document.getElementById("local-view");
   const isOpen = lv.classList.contains("mobile-show");
   closeMobilePanels();
-  if (!isOpen) {
+  if (!isOpen && lv.classList.contains("data-ready")) {
+    lv.style.display = "flex";
     lv.classList.add("mobile-show");
     mobileBackdrop.classList.add("visible");
     toggleLocalBtn.classList.add("active");
