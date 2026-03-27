@@ -535,40 +535,10 @@ function drawLocalViewFullscreen(fw, fh) {
   if (!localViewCanvas) return;
   const lc = localViewCanvas.getContext("2d");
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  // Scale the 520×220 logical drawing to fill fw×fh
+  // Scale the 520×220 logical coords to fill the rotated fullscreen canvas
   const scaleX = fw / LV_W;
   const scaleY = fh / LV_H;
   lc.setTransform(dpr * scaleX, 0, 0, dpr * scaleY, 0, 0);
-  // Draw using the original 520×220 coordinate space
-  // Temporarily override _localViewScaled to prevent drawLocalView from re-scaling
-  const savedScaled = _localViewScaled;
-  const savedW = _lastLVWidth;
-  _localViewScaled = true;
-  _lastLVWidth = fw;
-
-  // Call internal draw (it uses LV_W, LV_H internally after the setup block)
-  const W = LV_W, H = LV_H;
-  lc.clearRect(0, 0, W, H);
-
-  // ── Reuse the exact draw logic ──
-  const skyGrad = lc.createLinearGradient(0, 0, 0, H);
-  skyGrad.addColorStop(0, "#010306");
-  skyGrad.addColorStop(0.5, "#04101e");
-  skyGrad.addColorStop(1, "#0c1d35");
-  lc.fillStyle = skyGrad;
-  lc.fillRect(0, 0, W, H);
-  // Just call the regular drawLocalView after setting the transform
-  // Reset and re-call properly
-  _localViewScaled = savedScaled;
-  _lastLVWidth = savedW;
-
-  // Actually the simplest: just invoke drawLocalView — it clears & draws everything
-  // We already set the transform above, but drawLocalView will overwrite it.
-  // Better approach: directly call with the right transform.
-  // Let's reset and set the correct compound transform:
-  lc.setTransform(dpr * scaleX, 0, 0, dpr * scaleY, 0, 0);
-
-  // Now manually trigger the draw portion (skip the setup block)
   _drawLocalViewContent(lc, LV_W, LV_H);
 }
 
@@ -1677,19 +1647,19 @@ toggleLocalBtn.addEventListener("click", () => {
     lv.style.display = "flex";
     lv.classList.add("mobile-show");
     toggleLocalBtn.classList.add("active");
-    // Force canvas to fill screen
+    // Rotated fullscreen: CSS width=100vh, height=100vw
+    // So canvas width = viewport height, canvas height = viewport width - header
     _localViewScaled = false;
     _lastLVWidth = 0;
     const lc = localViewCanvas.getContext("2d");
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const fw = window.innerWidth;
-    const fh = window.innerHeight - 40; // minus header
+    const fw = window.innerHeight;        // rotated: vh becomes width
+    const fh = window.innerWidth - 36;    // rotated: vw becomes height, minus header
     localViewCanvas.width = fw * dpr;
     localViewCanvas.height = fh * dpr;
     localViewCanvas.style.width = "";
     localViewCanvas.style.height = "";
     lc.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // Redraw at fullscreen size using the canvas actual size
     drawLocalViewFullscreen(fw, fh);
   }
 });

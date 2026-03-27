@@ -734,40 +734,47 @@ canvas.cat-planet-dot {
     aspect-ratio: 1;
   }
 
-  /* ── Local View: FULLSCREEN takeover ── */
+  /* ── Local View: fullscreen rotated 90° (landscape in portrait) ── */
   .local-view {
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
     z-index: 200;
-    width: 100% !important;
-    max-width: none;
+    /* Rotate: use viewport height as width, viewport width as height */
+    width: 100vh;
+    height: 100vw;
+    transform-origin: top left;
+    transform: rotate(90deg) translateY(-100vw);
     border-radius: 0;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s var(--ease);
     background: #010306;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    top: 0;
     flex-direction: column;
+    overflow: hidden;
+    /* Reset desktop positioning */
+    bottom: auto;
+    right: auto;
   }
   .local-view.mobile-show {
     opacity: 1;
     pointer-events: all;
   }
   .local-view .local-view-header {
-    padding: 12px 16px;
-    padding-top: max(12px, env(safe-area-inset-top));
+    padding: 10px 16px;
+    padding-left: max(16px, env(safe-area-inset-top));
+    flex-shrink: 0;
   }
   #local-view-canvas {
     width: 100% !important;
-    height: 100% !important;
+    height: 0 !important;
     flex: 1;
     aspect-ratio: auto;
   }
   .local-view-close {
     display: block;
+    top: 10px;
+    right: 14px;
   }
 
   /* Backdrop when a panel is shown */
