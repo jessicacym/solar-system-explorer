@@ -705,9 +705,8 @@ canvas.cat-planet-dot {
     gap: 2px;
   }
 
-  /* ── Sky Radar & Local View: HIDDEN by default, toggled via JS ── */
-  .sky-radar,
-  .local-view {
+  /* ── Sky Radar: centered popup ── */
+  .sky-radar {
     position: fixed;
     top: 50%;
     left: 50%;
@@ -724,8 +723,7 @@ canvas.cat-planet-dot {
     bottom: auto;
     right: auto;
   }
-  .sky-radar.mobile-show,
-  .local-view.mobile-show {
+  .sky-radar.mobile-show {
     opacity: 1;
     pointer-events: all;
     transform: translate(-50%, -50%) scale(1);
@@ -735,10 +733,41 @@ canvas.cat-planet-dot {
     height: auto;
     aspect-ratio: 1;
   }
+
+  /* ── Local View: FULLSCREEN takeover ── */
+  .local-view {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    width: 100% !important;
+    max-width: none;
+    border-radius: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s var(--ease);
+    background: #010306;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: 0;
+    flex-direction: column;
+  }
+  .local-view.mobile-show {
+    opacity: 1;
+    pointer-events: all;
+  }
+  .local-view .local-view-header {
+    padding: 12px 16px;
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
   #local-view-canvas {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 520 / 220;
+    width: 100% !important;
+    height: 100% !important;
+    flex: 1;
+    aspect-ratio: auto;
+  }
+  .local-view-close {
+    display: block;
   }
 
   /* Backdrop when a panel is shown */
@@ -883,6 +912,26 @@ canvas.cat-planet-dot {
     font-size: 6px;
     top: -14px;
   }
+}
+
+/* ─── Local View close button (mobile only) ─── */
+.local-view-close {
+  display: none;
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  background: none;
+  border: none;
+  color: rgba(150, 185, 235, 0.7);
+  font-size: 28px;
+  cursor: pointer;
+  z-index: 5;
+  line-height: 1;
+  padding: 4px;
+  transition: color 0.2s;
+}
+.local-view-close:hover {
+  color: #fff;
 }
 
 /* ─── Hide mobile toggles on desktop ─── */

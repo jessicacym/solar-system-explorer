@@ -530,6 +530,202 @@ function drawLocalView() {
   });
 }
 
+// Fullscreen local view for mobile — reuses drawLocalView logic via scale transform
+function drawLocalViewFullscreen(fw, fh) {
+  if (!localViewCanvas) return;
+  const lc = localViewCanvas.getContext("2d");
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  // Scale the 520×220 logical drawing to fill fw×fh
+  const scaleX = fw / LV_W;
+  const scaleY = fh / LV_H;
+  lc.setTransform(dpr * scaleX, 0, 0, dpr * scaleY, 0, 0);
+  // Draw using the original 520×220 coordinate space
+  // Temporarily override _localViewScaled to prevent drawLocalView from re-scaling
+  const savedScaled = _localViewScaled;
+  const savedW = _lastLVWidth;
+  _localViewScaled = true;
+  _lastLVWidth = fw;
+
+  // Call internal draw (it uses LV_W, LV_H internally after the setup block)
+  const W = LV_W, H = LV_H;
+  lc.clearRect(0, 0, W, H);
+
+  // ── Reuse the exact draw logic ──
+  const skyGrad = lc.createLinearGradient(0, 0, 0, H);
+  skyGrad.addColorStop(0, "#010306");
+  skyGrad.addColorStop(0.5, "#04101e");
+  skyGrad.addColorStop(1, "#0c1d35");
+  lc.fillStyle = skyGrad;
+  lc.fillRect(0, 0, W, H);
+  // Just call the regular drawLocalView after setting the transform
+  // Reset and re-call properly
+  _localViewScaled = savedScaled;
+  _lastLVWidth = savedW;
+
+  // Actually the simplest: just invoke drawLocalView — it clears & draws everything
+  // We already set the transform above, but drawLocalView will overwrite it.
+  // Better approach: directly call with the right transform.
+  // Let's reset and set the correct compound transform:
+  lc.setTransform(dpr * scaleX, 0, 0, dpr * scaleY, 0, 0);
+
+  // Now manually trigger the draw portion (skip the setup block)
+  _drawLocalViewContent(lc, LV_W, LV_H);
+}
+
+// Extracted draw content for reuse
+function _drawLocalViewContent(lc, W, H) {
+  lc.clearRect(0, 0, W, H);
+
+  const skyGrad = lc.createLinearGradient(0, 0, 0, H);
+  skyGrad.addColorStop(0, "#010306");
+  skyGrad.addColorStop(0.5, "#04101e");
+  skyGrad.addColorStop(1, "#0c1d35");
+  lc.fillStyle = skyGrad;
+  lc.fillRect(0, 0, W, H);
+
+  const horizonY = H * 0.70;
+  const skyH = horizonY;
+
+  const rng = (n) => Math.abs(Math.sin(n * 127.3 + 91.5));
+  for (let i = 0; i < 120; i++) {
+    const sx = rng(i * 3.1) * W;
+    const sy = rng(i * 7.7) * skyH * 0.95;
+    const sa = rng(i * 13.3) * 0.28 + 0.05;
+    const sr = rng(i * 5.9) * 0.55 + 0.15;
+    lc.beginPath(); lc.arc(sx, sy, sr, 0, Math.PI * 2);
+    lc.fillStyle = `rgba(200,215,255,${sa})`; lc.fill();
+  }
+  for (let i = 0; i < 15; i++) {
+    const sx = rng(i * 41.7 + 5) * W;
+    const sy = rng(i * 19.3 + 2) * skyH * 0.88;
+    const sr = rng(i * 3.7) * 0.8 + 0.6;
+    const sa = rng(i * 8.1) * 0.35 + 0.3;
+    lc.beginPath(); lc.arc(sx, sy, sr, 0, Math.PI * 2);
+    lc.fillStyle = `rgba(230,238,255,${sa})`; lc.fill();
+    const sg = lc.createRadialGradient(sx, sy, 0, sx, sy, sr * 3);
+    sg.addColorStop(0, `rgba(200,215,255,${sa * 0.4})`);
+    sg.addColorStop(1, "transparent");
+    lc.fillStyle = sg;
+    lc.fillRect(sx - sr * 3, sy - sr * 3, sr * 6, sr * 6);
+  }
+
+  lc.fillStyle = "#04060c";
+  lc.fillRect(0, horizonY, W, H - horizonY);
+
+  lc.fillStyle = "#060910"; lc.beginPath(); lc.moveTo(0, horizonY);
+  const trees = [
+    [8,26],[24,18],[40,30],[55,20],[70,32],[88,16],[105,28],[118,14],
+    [135,24],[150,18],[165,30],[180,12],[195,22],[210,16],[225,26],
+    [240,14],[255,20],[270,28],[285,12],[300,18],[315,24],[330,10],
+  ];
+  trees.forEach(([tx, th], idx) => {
+    if (idx === 0) lc.moveTo(tx - 10, horizonY);
+    lc.lineTo(tx - 6, horizonY - th * 0.4);
+    lc.lineTo(tx, horizonY - th);
+    lc.lineTo(tx + 6, horizonY - th * 0.4);
+    lc.lineTo(tx + 10, horizonY);
+  });
+  lc.lineTo(340, horizonY); lc.lineTo(0, horizonY); lc.closePath(); lc.fill();
+
+  lc.fillStyle = "#050810";
+  const bldgs = [
+    {x:340,w:18,h:24},{x:360,w:12,h:36},{x:374,w:20,h:20},{x:396,w:10,h:30},
+    {x:408,w:16,h:16},{x:426,w:22,h:26},{x:450,w:12,h:38},{x:464,w:18,h:18},
+    {x:484,w:10,h:28},{x:496,w:24,h:22},
+  ];
+  bldgs.forEach(b => {
+    lc.fillRect(b.x, horizonY - b.h, b.w, b.h + 4);
+    if (b.h >= 30) lc.fillRect(b.x + b.w / 2 - 0.6, horizonY - b.h - 8, 1.2, 9);
+  });
+  const craneX = 455, craneBase = horizonY, craneH = 55;
+  lc.fillRect(craneX - 1.5, craneBase - craneH, 3, craneH);
+  lc.fillRect(craneX - 28, craneBase - craneH + 2, 44, 2.5);
+  lc.fillRect(craneX + 14, craneBase - craneH + 2, 2, 18);
+  lc.fillRect(craneX - 28, craneBase - craneH + 4, 1.5, 14);
+
+  const hGlow = lc.createLinearGradient(0, horizonY - 22, 0, horizonY + 4);
+  hGlow.addColorStop(0, "rgba(30, 75, 160, 0.09)");
+  hGlow.addColorStop(1, "transparent");
+  lc.fillStyle = hGlow;
+  lc.fillRect(0, horizonY - 22, W, 26);
+  lc.beginPath(); lc.moveTo(0, horizonY); lc.lineTo(W, horizonY);
+  lc.strokeStyle = "rgba(50, 85, 150, 0.3)"; lc.lineWidth = 0.5; lc.stroke();
+
+  if (Object.keys(positionData).length === 0) {
+    lc.font = "12px 'Instrument Sans',sans-serif";
+    lc.fillStyle = "rgba(110,150,210,0.5)";
+    lc.textAlign = "center"; lc.textBaseline = "middle";
+    lc.fillText("Enter your location to see visible planets", W / 2, skyH * 0.42);
+    return;
+  }
+
+  const hasVisible = PLANET_CONFIG.some(c => {
+    const p = positionData[c.id];
+    return p && !isNaN(parseFloat(p.alt)) && parseFloat(p.alt) >= 0;
+  });
+  if (!hasVisible) {
+    lc.font = "11px 'Instrument Sans',sans-serif";
+    lc.fillStyle = "rgba(100,135,195,0.42)";
+    lc.textAlign = "center"; lc.textBaseline = "middle";
+    lc.fillText("No planets above the horizon right now", W / 2, skyH * 0.42);
+  }
+
+  PLANET_CONFIG.forEach(config => {
+    const pdata = positionData[config.id];
+    if (!pdata) return;
+    const alt = parseFloat(pdata.alt);
+    const az = parseFloat(pdata.az);
+    if (isNaN(alt) || isNaN(az) || alt < 0) return;
+
+    const px = (az / 360) * W;
+    const py = horizonY - (alt / 90) * (skyH - 20);
+    const cx = Math.max(12, Math.min(W - 12, px));
+    const cy = Math.max(16, Math.min(horizonY - 12, py));
+    const { radius, glowR, alpha } = magToVisual(pdata.mag);
+    const horizonTint = Math.max(0, 1 - alt / 12);
+
+    const colorGlow = lc.createRadialGradient(cx, cy, 0, cx, cy, glowR);
+    const glowA = alpha * 0.5;
+    colorGlow.addColorStop(0, config.color + Math.min(255, Math.round(glowA * 255)).toString(16).padStart(2, "0"));
+    colorGlow.addColorStop(0.6, config.color + "30");
+    colorGlow.addColorStop(1, "transparent");
+    lc.fillStyle = colorGlow; lc.beginPath(); lc.arc(cx, cy, glowR, 0, Math.PI * 2); lc.fill();
+
+    if (horizonTint > 0.05) {
+      const warmGlow = lc.createRadialGradient(cx, cy, 0, cx, cy, glowR * 0.75);
+      warmGlow.addColorStop(0, `rgba(255,140,50,${horizonTint * alpha * 0.4})`);
+      warmGlow.addColorStop(1, "transparent");
+      lc.fillStyle = warmGlow; lc.beginPath(); lc.arc(cx, cy, glowR * 0.75, 0, Math.PI * 2); lc.fill();
+    }
+
+    const haloR = radius * 2.5;
+    const coreGlow = lc.createRadialGradient(cx, cy, 0, cx, cy, haloR);
+    coreGlow.addColorStop(0, `rgba(255,255,255,${alpha * 0.95})`);
+    coreGlow.addColorStop(0.45, `rgba(255,255,255,${alpha * 0.35})`);
+    coreGlow.addColorStop(1, "transparent");
+    lc.fillStyle = coreGlow; lc.beginPath(); lc.arc(cx, cy, haloR, 0, Math.PI * 2); lc.fill();
+
+    lc.beginPath(); lc.arc(cx, cy, radius, 0, Math.PI * 2);
+    lc.fillStyle = `rgba(255,255,255,${alpha})`; lc.fill();
+
+    const edgeLeft = cx < 50, edgeRight = cx > W - 50;
+    const textAlign = edgeLeft ? "left" : edgeRight ? "right" : "center";
+    const lx = edgeLeft ? cx + radius + 5 : edgeRight ? cx - radius - 5 : cx;
+
+    lc.font = `600 ${radius >= 3.5 ? 9 : 8}px 'Instrument Sans',sans-serif`;
+    lc.fillStyle = `rgba(210,230,255,${Math.min(1, alpha + 0.1)})`;
+    lc.textAlign = textAlign; lc.textBaseline = "bottom";
+    lc.fillText(config.nameEN, lx, cy - radius - 3);
+
+    if (pdata.mag !== null && pdata.mag < 3) {
+      lc.font = "7px 'SF Mono','Fira Code',monospace";
+      lc.fillStyle = `rgba(160,195,255,${alpha * 0.55})`;
+      lc.textBaseline = "top";
+      lc.fillText(`${pdata.mag >= 0 ? "+" : ""}${pdata.mag.toFixed(1)}`, lx, cy + radius + 3);
+    }
+  });
+}
+
 // ─── Update planet positions each frame ───
 function updatePlanetOrbitPositions() {
   PLANET_CONFIG.forEach(config => {
@@ -1480,9 +1676,30 @@ toggleLocalBtn.addEventListener("click", () => {
   if (!isOpen && lv.classList.contains("data-ready")) {
     lv.style.display = "flex";
     lv.classList.add("mobile-show");
-    mobileBackdrop.classList.add("visible");
     toggleLocalBtn.classList.add("active");
+    // Force canvas to fill screen
+    _localViewScaled = false;
+    _lastLVWidth = 0;
+    const lc = localViewCanvas.getContext("2d");
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const fw = window.innerWidth;
+    const fh = window.innerHeight - 40; // minus header
+    localViewCanvas.width = fw * dpr;
+    localViewCanvas.height = fh * dpr;
+    localViewCanvas.style.width = "";
+    localViewCanvas.style.height = "";
+    lc.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Redraw at fullscreen size using the canvas actual size
+    drawLocalViewFullscreen(fw, fh);
   }
+});
+
+// Close button for fullscreen local view
+document.getElementById("local-view-close").addEventListener("click", () => {
+  closeMobilePanels();
+  // Reset canvas for desktop size
+  _localViewScaled = false;
+  _lastLVWidth = 0;
 });
 
 mobileBackdrop.addEventListener("click", closeMobilePanels);
