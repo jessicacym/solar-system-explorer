@@ -743,6 +743,246 @@ function buildStatsPanel(planet) {
   planetStatsPanel.style.display = "";
 }
 
+// ─── Sky Radar Chart ─────────────────────────
+const skyRadarCanvas = document.getElementById("sky-radar-canvas");
+const skyRadarCtx = skyRadarCanvas.getContext("2d");
+let _radarAnimId = null;
+
+// Planet color map (matches PLANET_CONFIG)
+const PLANET_COLORS = {};
+PLANET_CONFIG.forEach(c => { PLANET_COLORS[c.id] = c.color; });
+
+// Short names for labels
+const PLANET_SHORT = {
+  mercury: "Mercury", venus: "Venus", earth: "Earth", mars: "Mars",
+  jupiter: "Jupiter", saturn: "Saturn", uranus: "Uranus", neptune: "Neptune",
+};
+
+function drawSkyRadar(highlightId) {
+  if (_radarAnimId) cancelAnimationFrame(_radarAnimId);
+
+  const W = skyRadarCanvas.width;   // 540 (2x for retina)
+  const H = skyRadarCanvas.height;
+  const cx = W / 2;
+  const cy = H / 2;
+  const R = (Math.min(W, H) / 2) - 40; // chart radius, leave margin for labels
+
+  const hasData = Object.keys(positionData).length > 0;
+
+  function render() {
+    const t = performance.now();
+    skyRadarCtx.clearRect(0, 0, W, H);
+
+    // ── Background ──
+    const bgGrad = skyRadarCtx.createRadialGradient(cx, cy, 0, cx, cy, R + 30);
+    bgGrad.addColorStop(0, "rgba(8, 14, 28, 0.95)");
+    bgGrad.addColorStop(1, "rgba(4, 6, 14, 0.98)");
+    skyRadarCtx.fillStyle = bgGrad;
+    skyRadarCtx.fillRect(0, 0, W, H);
+
+    // ── Grid rings (0°=edge/horizon, 90°=center/zenith) ──
+    // Rings at 0°, 30°, 60°, 90° altitude
+    const altitudes = [0, 30, 60, 90];
+    altitudes.forEach(alt => {
+      const r = R * (1 - alt / 90);
+      skyRadarCtx.beginPath();
+      skyRadarCtx.arc(cx, cy, r, 0, Math.PI * 2);
+      skyRadarCtx.strokeStyle = alt === 0
+        ? "rgba(80, 130, 200, 0.25)"
+        : "rgba(60, 100, 160, 0.1)";
+      skyRadarCtx.lineWidth = alt === 0 ? 1.5 : 0.8;
+      skyRadarCtx.stroke();
+
+      // Altitude labels
+      if (alt > 0 && alt < 90) {
+        skyRadarCtx.font = "600 16px 'SF Mono', 'Consolas', monospace";
+        skyRadarCtx.fillStyle = "rgba(100, 140, 200, 0.25)";
+        skyRadarCtx.textAlign = "left";
+        skyRadarCtx.textBaseline = "middle";
+        skyRadarCtx.fillText(`${alt}°`, cx + 4, cy - r + 2);
+      }
+    });
+
+    // ── Cross-hairs (N-S, E-W lines) ──
+    skyRadarCtx.strokeStyle = "rgba(60, 100, 160, 0.08)";
+    skyRadarCtx.lineWidth = 0.8;
+    // Vertical (N-S)
+    skyRadarCtx.beginPath();
+    skyRadarCtx.moveTo(cx, cy - R); skyRadarCtx.lineTo(cx, cy + R);
+    skyRadarCtx.stroke();
+    // Horizontal (E-W)
+    skyRadarCtx.beginPath();
+    skyRadarCtx.moveTo(cx - R, cy); skyRadarCtx.lineTo(cx + R, cy);
+    skyRadarCtx.stroke();
+
+    // ── Cardinal direction labels ──
+    // Sky chart convention: N=top, E=left (mirror of map), S=bottom, W=right
+    const cardinals = [
+      { label: "N", angle: -Math.PI / 2 },
+      { label: "E", angle: Math.PI },      // East on left in sky view
+      { label: "S", angle: Math.PI / 2 },
+      { label: "W", angle: 0 },            // West on right in sky view
+    ];
+    skyRadarCtx.font = "700 20px 'SF Mono', 'Consolas', monospace";
+    skyRadarCtx.textAlign = "center";
+    skyRadarCtx.textBaseline = "middle";
+    cardinals.forEach(c => {
+      const lx = cx + (R + 22) * Math.cos(c.angle);
+      const ly = cy + (R + 22) * Math.sin(c.angle);
+      skyRadarCtx.fillStyle = c.label === "N"
+        ? "rgba(220, 120, 100, 0.7)"
+        : "rgba(120, 160, 210, 0.45)";
+      skyRadarCtx.fillText(c.label, lx, ly);
+    });
+
+    // ── Zenith marker ──
+    skyRadarCtx.beginPath();
+    skyRadarCtx.arc(cx, cy, 3, 0, Math.PI * 2);
+    skyRadarCtx.fillStyle = "rgba(100, 150, 220, 0.3)";
+    skyRadarCtx.fill();
+
+    // ── Horizon ring glow ──
+    skyRadarCtx.beginPath();
+    skyRadarCtx.arc(cx, cy, R, 0, Math.PI * 2);
+    skyRadarCtx.strokeStyle = "rgba(80, 140, 220, 0.12)";
+    skyRadarCtx.lineWidth = 4;
+    skyRadarCtx.stroke();
+
+    // ── Plot planets ──
+    if (hasData) {
+      // Below-horizon first (so above-horizon draws on top)
+      const sorted = PLANET_IDS.filter(id => id !== "earth").map(id => {
+        const pos = positionData[id];
+        if (!pos) return null;
+        const az = parseFloat(pos.az);
+        const alt = parseFloat(pos.alt);
+        return { id, az, alt, visible: alt >= 0 };
+      }).filter(Boolean);
+
+      // Sort: below-horizon first, then above-horizon
+      sorted.sort((a, b) => (a.visible === b.visible ? 0 : a.visible ? 1 : -1));
+
+      sorted.forEach(p => {
+        const color = PLANET_COLORS[p.id] || "#888";
+        const isHighlight = p.id === highlightId;
+
+        // Convert AZ/ALT to x,y
+        // AZ: 0°=N, 90°=E, 180°=S, 270°=W (clockwise from north)
+        // Sky chart: N=top, E=left (mirrored)
+        // Angle from top, clockwise, but E goes left → negate horizontal
+        const azRad = (p.az - 90) * Math.PI / 180; // shift so 0°=right
+        // In sky chart East is on left, so mirror: use -azRad for x
+        const altClamped = Math.max(-90, Math.min(90, p.alt));
+        const dist = p.visible
+          ? R * (1 - altClamped / 90) // above horizon: 0° at edge, 90° at center
+          : R + R * Math.min(Math.abs(altClamped) / 90, 1) * 0.22; // below horizon: slightly outside
+
+        // N=top: az 0° → up (negative y)
+        // Sky chart mirror: E(90°) is left
+        const px = cx - dist * Math.sin(azRad + Math.PI / 2);
+        const py = cy - dist * Math.cos(azRad + Math.PI / 2);
+
+        // Planet dot
+        const baseSize = isHighlight ? 9 : 6;
+
+        if (!p.visible) {
+          // ── Below horizon: blinking ghost ──
+          const blink = 0.3 + 0.3 * Math.sin(t / 600 + p.az);
+          skyRadarCtx.globalAlpha = blink;
+
+          // Dashed circle outline
+          skyRadarCtx.beginPath();
+          skyRadarCtx.arc(px, py, baseSize + 2, 0, Math.PI * 2);
+          skyRadarCtx.strokeStyle = color;
+          skyRadarCtx.lineWidth = 1;
+          skyRadarCtx.setLineDash([3, 3]);
+          skyRadarCtx.stroke();
+          skyRadarCtx.setLineDash([]);
+
+          // Dim dot
+          skyRadarCtx.beginPath();
+          skyRadarCtx.arc(px, py, baseSize * 0.6, 0, Math.PI * 2);
+          skyRadarCtx.fillStyle = color;
+          skyRadarCtx.fill();
+
+          // Label
+          skyRadarCtx.font = "500 14px 'SF Mono', 'Consolas', monospace";
+          skyRadarCtx.fillStyle = color;
+          skyRadarCtx.textAlign = "center";
+          skyRadarCtx.textBaseline = "bottom";
+          skyRadarCtx.fillText(PLANET_SHORT[p.id], px, py - baseSize - 5);
+
+          skyRadarCtx.globalAlpha = 1;
+        } else {
+          // ── Above horizon: bright solid dot with glow ──
+          skyRadarCtx.globalAlpha = 1;
+
+          // Glow
+          const glow = skyRadarCtx.createRadialGradient(px, py, 0, px, py, baseSize * 3);
+          glow.addColorStop(0, color + "60");
+          glow.addColorStop(1, color + "00");
+          skyRadarCtx.fillStyle = glow;
+          skyRadarCtx.beginPath();
+          skyRadarCtx.arc(px, py, baseSize * 3, 0, Math.PI * 2);
+          skyRadarCtx.fill();
+
+          // Solid dot
+          skyRadarCtx.beginPath();
+          skyRadarCtx.arc(px, py, baseSize, 0, Math.PI * 2);
+          skyRadarCtx.fillStyle = color;
+          skyRadarCtx.fill();
+
+          // Bright core
+          skyRadarCtx.beginPath();
+          skyRadarCtx.arc(px, py, baseSize * 0.4, 0, Math.PI * 2);
+          skyRadarCtx.fillStyle = "#fff";
+          skyRadarCtx.globalAlpha = 0.7;
+          skyRadarCtx.fill();
+          skyRadarCtx.globalAlpha = 1;
+
+          // Highlight ring for selected planet
+          if (isHighlight) {
+            skyRadarCtx.beginPath();
+            skyRadarCtx.arc(px, py, baseSize + 5, 0, Math.PI * 2);
+            skyRadarCtx.strokeStyle = "#fff";
+            skyRadarCtx.lineWidth = 1.2;
+            skyRadarCtx.globalAlpha = 0.4 + 0.2 * Math.sin(t / 400);
+            skyRadarCtx.stroke();
+            skyRadarCtx.globalAlpha = 1;
+          }
+
+          // Label
+          skyRadarCtx.font = isHighlight
+            ? "700 15px 'SF Mono', 'Consolas', monospace"
+            : "500 14px 'SF Mono', 'Consolas', monospace";
+          skyRadarCtx.fillStyle = isHighlight ? "#fff" : color;
+          skyRadarCtx.textAlign = "center";
+          skyRadarCtx.textBaseline = "bottom";
+          skyRadarCtx.fillText(PLANET_SHORT[p.id], px, py - baseSize - 5);
+        }
+      });
+    } else {
+      // No data state
+      skyRadarCtx.font = "500 18px 'Instrument Sans', sans-serif";
+      skyRadarCtx.fillStyle = "rgba(120, 150, 200, 0.3)";
+      skyRadarCtx.textAlign = "center";
+      skyRadarCtx.textBaseline = "middle";
+      skyRadarCtx.fillText("Awaiting position data…", cx, cy);
+    }
+
+    _radarAnimId = requestAnimationFrame(render);
+  }
+
+  render();
+}
+
+function stopSkyRadar() {
+  if (_radarAnimId) {
+    cancelAnimationFrame(_radarAnimId);
+    _radarAnimId = null;
+  }
+}
+
 // ─── Detail Panel ─────────────────────────
 function openDetailPanel(planet) {
   selectedPlanet = planet.id;
@@ -817,6 +1057,9 @@ function openDetailPanel(planet) {
     </div>
   `;
 
+  // Start sky radar animation
+  drawSkyRadar(planet.id);
+
   detailPanel.hidden = false;
   detailPanel.offsetHeight;
   detailPanel.classList.add("open");
@@ -825,6 +1068,7 @@ function openDetailPanel(planet) {
 function closeDetailPanel() {
   detailPanel.classList.remove("open");
   planetStatsPanel.style.display = "none";
+  stopSkyRadar();
   setTimeout(() => {
     detailPanel.hidden = true;
   }, 400);

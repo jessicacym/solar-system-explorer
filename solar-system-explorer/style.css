@@ -592,6 +592,46 @@ canvas.cat-planet-dot {
   color: var(--text-secondary);
 }
 
+/* ─── Sky Radar Chart ─── */
+.sky-radar {
+  margin-top: 20px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(80, 120, 180, 0.15);
+  background: rgba(4, 8, 18, 0.6);
+}
+
+.sky-radar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 14px;
+  background: rgba(4, 8, 18, 0.94);
+  border-bottom: 1px solid rgba(80, 120, 180, 0.1);
+}
+
+.sky-radar-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: rgba(150, 185, 235, 0.7);
+  text-transform: uppercase;
+}
+
+.sky-radar-sub {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: rgba(110, 145, 190, 0.4);
+  letter-spacing: 0.06em;
+}
+
+#sky-radar-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
   .nav-links {
