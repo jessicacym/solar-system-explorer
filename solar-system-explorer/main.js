@@ -746,7 +746,9 @@ function buildStatsPanel(planet) {
 // ─── Sky Radar Chart ─────────────────────────
 const skyRadarCanvas = document.getElementById("sky-radar-canvas");
 const skyRadarCtx = skyRadarCanvas.getContext("2d");
+const skyRadarEl = document.getElementById("sky-radar");
 let _radarAnimId = null;
+let _radarHighlight = null;
 
 // Planet color map (matches PLANET_CONFIG)
 const PLANET_COLORS = {};
@@ -758,10 +760,11 @@ const PLANET_SHORT = {
   jupiter: "Jupiter", saturn: "Saturn", uranus: "Uranus", neptune: "Neptune",
 };
 
-function drawSkyRadar(highlightId) {
+function drawSkyRadar() {
   if (_radarAnimId) cancelAnimationFrame(_radarAnimId);
+  skyRadarEl.style.display = "";
 
-  const W = skyRadarCanvas.width;   // 540 (2x for retina)
+  const W = skyRadarCanvas.width;   // 560 (2x for retina)
   const H = skyRadarCanvas.height;
   const cx = W / 2;
   const cy = H / 2;
@@ -864,7 +867,7 @@ function drawSkyRadar(highlightId) {
 
       sorted.forEach(p => {
         const color = PLANET_COLORS[p.id] || "#888";
-        const isHighlight = p.id === highlightId;
+        const isHighlight = p.id === _radarHighlight;
 
         // Convert AZ/ALT to x,y
         // AZ: 0°=N, 90°=E, 180°=S, 270°=W (clockwise from north)
@@ -1057,8 +1060,8 @@ function openDetailPanel(planet) {
     </div>
   `;
 
-  // Start sky radar animation
-  drawSkyRadar(planet.id);
+  // Update radar highlight to this planet
+  _radarHighlight = planet.id;
 
   detailPanel.hidden = false;
   detailPanel.offsetHeight;
@@ -1068,7 +1071,7 @@ function openDetailPanel(planet) {
 function closeDetailPanel() {
   detailPanel.classList.remove("open");
   planetStatsPanel.style.display = "none";
-  stopSkyRadar();
+  _radarHighlight = null;
   setTimeout(() => {
     detailPanel.hidden = true;
   }, 400);
@@ -1382,6 +1385,7 @@ function showGalaxyView() {
     }
   }
   drawLocalView();
+  drawSkyRadar();
   startRefreshCycle();
 }
 
