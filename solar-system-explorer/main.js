@@ -754,10 +754,10 @@ function openDetailPanel(planet) {
 
   const detailDotContainer = document.getElementById("detail-dot");
   detailDotContainer.innerHTML = "";
-  const detailSize = 96;
+  const detailSize = 72;
   const { canvas: detailCanvas, sphere: dSphere } = createPlanetParticleSphere(planet.id, detailSize, {
-    particleCount: 500,
-    particleSize: 0.8,
+    particleCount: 400,
+    particleSize: 0.7,
     glowIntensity: 0.5,
   });
   detailDotContainer.appendChild(detailCanvas);

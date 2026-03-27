@@ -457,18 +457,19 @@ canvas.cat-planet-dot {
 /* ─── Detail Panel (slide-in from right) ─── */
 .detail-panel {
   position: fixed;
-  top: 0;
-  right: 0;
-  width: 360px;
-  height: 100%;
+  top: 20px;
+  right: 20px;
+  width: 320px;
+  max-height: calc(100vh - 40px);
   background: rgba(9, 11, 17, 0.95);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-left: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: 12px;
   z-index: 60;
-  padding: 80px 28px 28px;
+  padding: 56px 22px 22px;
   overflow-y: auto;
-  transform: translateX(100%);
+  transform: translateX(calc(100% + 40px));
   transition: transform 0.4s var(--ease);
 }
 
@@ -486,12 +487,12 @@ canvas.cat-planet-dot {
 
 .detail-close {
   position: absolute;
-  top: 18px;
-  right: 20px;
+  top: 14px;
+  right: 16px;
   background: none;
   border: none;
   color: var(--text-dim);
-  font-size: 28px;
+  font-size: 24px;
   cursor: pointer;
   transition: color 0.2s;
   line-height: 1;
@@ -504,15 +505,15 @@ canvas.cat-planet-dot {
 .detail-header {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 32px;
-  padding-bottom: 20px;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
 }
 
 .detail-dot {
-  width: 96px;
-  height: 96px;
+  width: 72px;
+  height: 72px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -541,14 +542,14 @@ canvas.cat-planet-dot {
 .detail-grid {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
 .detail-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
+  gap: 3px;
+  padding: 10px 12px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -574,8 +575,8 @@ canvas.cat-planet-dot {
 }
 
 .detail-source {
-  margin-top: 24px;
-  font-size: 11px;
+  margin-top: 14px;
+  font-size: 10px;
   color: var(--text-dim);
   text-align: right;
 }
@@ -619,11 +620,14 @@ canvas.cat-planet-dot {
   }
 
   .detail-panel {
-    width: 100%;
+    width: calc(100% - 20px);
+    right: 10px;
+    top: 10px;
+    max-height: calc(100vh - 20px);
   }
 
   .planet-stats {
-    width: 260px;
+    width: calc(100% - 20px);
     top: 48px;
     left: 10px;
   }
@@ -871,7 +875,7 @@ canvas.cat-planet-dot {
   top: 56px;
   left: 20px;
   z-index: 54;
-  width: 300px;
+  width: 520px;
   display: flex;
   flex-direction: column;
   border-radius: 10px;
@@ -888,7 +892,7 @@ canvas.cat-planet-dot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 14px;
+  padding: 8px 18px;
   background: rgba(4, 8, 18, 0.94);
   border-bottom: 1px solid rgba(80, 120, 180, 0.12);
 }
@@ -911,17 +915,17 @@ canvas.cat-planet-dot {
 
 .planet-stats-body {
   background: rgba(4, 8, 18, 0.88);
-  padding: 14px 16px 16px;
+  padding: 18px 22px 22px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 /* Each stat row */
 .stat-row {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .stat-row-top {
@@ -932,7 +936,7 @@ canvas.cat-planet-dot {
 
 .stat-label {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.14em;
   color: rgba(180, 195, 220, 0.6);
@@ -941,47 +945,56 @@ canvas.cat-planet-dot {
 
 .stat-value {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
-  color: rgba(220, 230, 255, 0.85);
+  color: rgba(220, 230, 255, 0.88);
   letter-spacing: 0.02em;
 }
 
 .stat-bar-track {
-  height: 6px;
+  height: 8px;
   background: rgba(255, 255, 255, 0.04);
-  border-radius: 3px;
+  border-radius: 4px;
   overflow: visible;
   position: relative;
 }
 
 .stat-bar-fill {
   height: 100%;
-  border-radius: 3px;
+  border-radius: 4px;
   transition: width 0.6s cubic-bezier(0.22, 0.6, 0.36, 1);
   min-width: 3px;
   max-width: 100%;
 }
 
-/* Earth reference marker — thin tick on the bar */
+/* Earth reference marker — bright diamond with glow + label */
 .stat-bar-earth {
   position: absolute;
-  top: -1px;
-  bottom: -1px;
-  width: 1.5px;
-  background: rgba(74, 158, 255, 0.6);
-  border-radius: 1px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  margin-left: -5px;
+  background: #4a9eff;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  box-shadow: 0 0 6px 2px rgba(74, 158, 255, 0.5);
   pointer-events: none;
+  z-index: 2;
 }
 
 .stat-bar-earth::after {
-  content: "⊕";
+  content: "Earth";
   position: absolute;
-  top: -13px;
+  top: -18px;
   left: 50%;
-  transform: translateX(-50%);
-  font-size: 7px;
-  color: rgba(74, 158, 255, 0.5);
+  transform: rotate(-45deg) translateX(-20%);
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(74, 158, 255, 0.85);
+  white-space: nowrap;
 }
 
 /* ─── Local View ─── */
