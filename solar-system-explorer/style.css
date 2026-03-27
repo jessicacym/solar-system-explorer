@@ -641,20 +641,15 @@ canvas.cat-planet-dot {
   height: 384px;
 }
 
-/* ─── Responsive: Tablet ─── */
+/* ─── Responsive: Tablet (≤1024px) ─── */
 @media (max-width: 1024px) {
-  /* Planet Stats panel shrinks to avoid overlapping orbit view */
   .planet-stats {
     width: 380px;
   }
-
-  /* Local View shrinks */
   #local-view-canvas {
     width: 380px;
     height: 160px;
   }
-
-  /* Radar stays proportional */
   .sky-radar {
     width: 320px;
   }
@@ -662,8 +657,6 @@ canvas.cat-planet-dot {
     width: 320px;
     height: 320px;
   }
-
-  /* Sidebar narrows */
   .detail-panel {
     width: 280px;
     padding: 48px 18px 18px;
@@ -671,7 +664,7 @@ canvas.cat-planet-dot {
   }
 }
 
-/* ─── Responsive: Mobile ─── */
+/* ─── Responsive: Mobile (≤768px) ─── */
 @media (max-width: 768px) {
   .nav-links {
     display: none;
@@ -679,7 +672,6 @@ canvas.cat-planet-dot {
   .nav-inner {
     padding: 0 16px;
   }
-
   .hero-title {
     font-size: 32px;
   }
@@ -697,7 +689,7 @@ canvas.cat-planet-dot {
     gap: 16px;
   }
 
-  /* ── Planet spheres: smaller for mobile ── */
+  /* ── Spheres ── */
   .sphere-name {
     font-size: 11px;
   }
@@ -709,16 +701,117 @@ canvas.cat-planet-dot {
     height: 70px;
   }
 
-  /* ── Detail Panel: bottom sheet style ── */
+  /* ── Sky Radar & Local View: HIDDEN by default, toggled via JS ── */
+  .sky-radar,
+  .local-view {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.95);
+    width: calc(100vw - 24px);
+    max-width: 400px;
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      opacity 0.25s var(--ease),
+      transform 0.25s var(--ease);
+    border-radius: 14px;
+    bottom: auto;
+    right: auto;
+  }
+  .sky-radar.mobile-show,
+  .local-view.mobile-show {
+    opacity: 1;
+    pointer-events: all;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  #sky-radar-canvas {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+  #local-view-canvas {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 520 / 220;
+  }
+
+  /* Backdrop when a panel is shown */
+  .mobile-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 199;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s var(--ease);
+  }
+  .mobile-backdrop.visible {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  /* ── Mobile toggle bar (replaces bottom-bar) ── */
+  .bottom-bar {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 8px 12px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    gap: 6px;
+    background: rgba(6, 8, 16, 0.92);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(80, 120, 180, 0.12);
+    justify-content: center;
+  }
+  .refresh-badge {
+    padding: 6px 10px;
+    font-size: 9px;
+  }
+  .recalc-btn {
+    padding: 7px 12px;
+    font-size: 11px;
+  }
+
+  /* Mobile toggle buttons */
+  .mobile-toggle-btn {
+    display: flex;
+    padding: 7px 12px;
+    background: rgba(40, 60, 100, 0.3);
+    border: 1px solid rgba(80, 120, 180, 0.2);
+    border-radius: 8px;
+    color: rgba(150, 185, 235, 0.75);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      border-color 0.2s;
+  }
+  .mobile-toggle-btn:active {
+    background: rgba(60, 90, 140, 0.4);
+  }
+  .mobile-toggle-btn.active {
+    background: rgba(74, 158, 255, 0.15);
+    border-color: rgba(74, 158, 255, 0.35);
+    color: #4a9eff;
+  }
+
+  /* ── Detail Panel: bottom sheet ── */
   .detail-panel {
     top: auto;
     bottom: 0;
     left: 0;
     right: 0;
     width: 100%;
-    max-height: 45vh;
+    max-height: 50vh;
     border-radius: 16px 16px 0 0;
     padding: 44px 16px 16px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
     transform: translateY(100%);
   }
   .detail-panel.open {
@@ -752,10 +845,10 @@ canvas.cat-planet-dot {
     font-size: 13px;
   }
 
-  /* ── Planet Stats: top overlay card ── */
+  /* ── Planet Stats: above detail panel ── */
   .planet-stats {
     top: auto;
-    bottom: 46vh;
+    bottom: 51vh;
     left: 10px;
     right: 10px;
     width: auto;
@@ -768,10 +861,10 @@ canvas.cat-planet-dot {
     gap: 10px;
   }
   .stat-label {
-    font-size: 8.5px;
+    font-size: 9px;
   }
   .stat-value {
-    font-size: 10px;
+    font-size: 10.5px;
   }
   .stat-bar-track {
     height: 6px;
@@ -786,100 +879,21 @@ canvas.cat-planet-dot {
     font-size: 6px;
     top: -14px;
   }
-
-  /* ── Sky Radar: bottom-left, compact ── */
-  .sky-radar {
-    bottom: 52px;
-    right: auto;
-    left: 10px;
-    width: calc(50vw - 15px);
-  }
-  #sky-radar-canvas {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 1;
-  }
-
-  /* ── Local View: bottom-right, compact ── */
-  .local-view {
-    bottom: 52px;
-    left: auto;
-    right: 10px;
-    width: calc(50vw - 15px);
-  }
-  #local-view-canvas {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 520 / 220;
-  }
-
-  /* ── Bottom Bar: narrower ── */
-  .bottom-bar {
-    bottom: 10px;
-    left: 10px;
-    right: 10px;
-    gap: 8px;
-  }
-  .refresh-badge {
-    padding: 6px 10px;
-    font-size: 9px;
-  }
-  .recalc-btn {
-    padding: 8px 14px;
-    font-size: 11px;
-  }
 }
 
-/* ─── Responsive: Small phones ─── */
-@media (max-width: 480px) {
-  .site-title {
-    font-size: 22px;
-    top: 10px;
-    left: 10px;
-    letter-spacing: 0.06em;
+/* ─── Hide mobile toggles on desktop ─── */
+.mobile-toggle-btn {
+  display: none;
+}
+.mobile-backdrop {
+  display: none;
+}
+@media (max-width: 768px) {
+  .mobile-toggle-btn {
+    display: flex;
   }
-
-  /* Stack radar and local view vertically on very small screens */
-  .sky-radar {
-    bottom: 140px;
-    left: 10px;
-    right: 10px;
-    width: auto;
-  }
-
-  .local-view {
-    bottom: 44px;
-    left: 10px;
-    right: 10px;
-    width: auto;
-  }
-  #local-view-canvas {
-    width: 100%;
-    height: 80px;
-  }
-
-  /* Planet spheres even smaller */
-  .sphere-name {
-    font-size: 9px;
-  }
-  .sphere-subtitle {
-    display: none;
-  }
-  .sphere-ball {
-    width: 50px;
-    height: 50px;
-  }
-
-  /* Detail panel takes more space */
-  .detail-panel {
-    max-height: 55vh;
-  }
-
-  /* Stats panel compact */
-  .planet-stats {
-    bottom: auto;
-    top: 44px;
-    max-height: 35vh;
+  .mobile-backdrop {
+    display: block;
   }
 }
 

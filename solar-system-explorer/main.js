@@ -1411,6 +1411,46 @@ recalcBtn.addEventListener("click", () => {
   settingsStatus.textContent = "";
 });
 
+// ─── Mobile panel toggle ─────────────────
+const mobileBackdrop = document.getElementById("mobile-backdrop");
+const toggleRadarBtn = document.getElementById("toggle-radar");
+const toggleLocalBtn = document.getElementById("toggle-local");
+
+function isMobile() { return window.innerWidth <= 768; }
+
+function closeMobilePanels() {
+  skyRadarEl.classList.remove("mobile-show");
+  document.getElementById("local-view").classList.remove("mobile-show");
+  mobileBackdrop.classList.remove("visible");
+  toggleRadarBtn.classList.remove("active");
+  toggleLocalBtn.classList.remove("active");
+}
+
+toggleRadarBtn.addEventListener("click", () => {
+  if (!isMobile()) return;
+  const isOpen = skyRadarEl.classList.contains("mobile-show");
+  closeMobilePanels();
+  if (!isOpen) {
+    skyRadarEl.classList.add("mobile-show");
+    mobileBackdrop.classList.add("visible");
+    toggleRadarBtn.classList.add("active");
+  }
+});
+
+toggleLocalBtn.addEventListener("click", () => {
+  if (!isMobile()) return;
+  const lv = document.getElementById("local-view");
+  const isOpen = lv.classList.contains("mobile-show");
+  closeMobilePanels();
+  if (!isOpen) {
+    lv.classList.add("mobile-show");
+    mobileBackdrop.classList.add("visible");
+    toggleLocalBtn.classList.add("active");
+  }
+});
+
+mobileBackdrop.addEventListener("click", closeMobilePanels);
+
 // ─── Init ─────────────────────────────────
 function init() {
   initOrbitAngles();

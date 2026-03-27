@@ -176,12 +176,17 @@
       <canvas id="local-view-canvas"></canvas>
     </div>
 
-    <!-- Bottom bar: refresh badge + settings button -->
+    <!-- Mobile backdrop (click to close panels) -->
+    <div class="mobile-backdrop" id="mobile-backdrop"></div>
+
+    <!-- Bottom bar: refresh badge + settings button + mobile toggles -->
     <div class="bottom-bar" id="bottom-bar" style="display: none">
       <div class="refresh-badge">
         <span class="refresh-dot"></span>
         <span id="refresh-label">Updated just now</span>
       </div>
+      <button class="mobile-toggle-btn" id="toggle-radar">Radar</button>
+      <button class="mobile-toggle-btn" id="toggle-local">Sky</button>
       <button class="recalc-btn" id="recalc-btn">Location</button>
     </div>
 
