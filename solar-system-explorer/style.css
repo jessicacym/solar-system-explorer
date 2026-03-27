@@ -622,6 +622,12 @@ canvas.cat-planet-dot {
     width: 100%;
   }
 
+  .planet-stats {
+    width: 260px;
+    top: 48px;
+    left: 10px;
+  }
+
   .sphere-name {
     font-size: 13px;
   }
@@ -857,6 +863,125 @@ canvas.cat-planet-dot {
   .settings-actions {
     flex-direction: column;
   }
+}
+
+/* ─── Planet Stats Panel (top-left, comparison chart) ─── */
+.planet-stats {
+  position: fixed;
+  top: 56px;
+  left: 20px;
+  z-index: 54;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(80, 120, 180, 0.18);
+  box-shadow:
+    0 8px 40px rgba(0, 0, 20, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.025);
+  backdrop-filter: blur(2px);
+  transition: opacity 0.4s var(--ease);
+}
+
+.planet-stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 14px;
+  background: rgba(4, 8, 18, 0.94);
+  border-bottom: 1px solid rgba(80, 120, 180, 0.12);
+}
+
+.planet-stats-title {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  color: rgba(150, 185, 235, 0.75);
+  text-transform: uppercase;
+}
+
+.planet-stats-vs {
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  color: rgba(110, 145, 190, 0.48);
+  letter-spacing: 0.06em;
+}
+
+.planet-stats-body {
+  background: rgba(4, 8, 18, 0.88);
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Each stat row */
+.stat-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.stat-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: rgba(180, 195, 220, 0.6);
+  text-transform: uppercase;
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(220, 230, 255, 0.85);
+  letter-spacing: 0.02em;
+}
+
+.stat-bar-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  overflow: visible;
+  position: relative;
+}
+
+.stat-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s cubic-bezier(0.22, 0.6, 0.36, 1);
+  min-width: 3px;
+  max-width: 100%;
+}
+
+/* Earth reference marker — thin tick on the bar */
+.stat-bar-earth {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 1.5px;
+  background: rgba(74, 158, 255, 0.6);
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+.stat-bar-earth::after {
+  content: "⊕";
+  position: absolute;
+  top: -13px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 7px;
+  color: rgba(74, 158, 255, 0.5);
 }
 
 /* ─── Local View ─── */

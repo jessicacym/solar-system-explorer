@@ -627,6 +627,122 @@ function darkenColor(hex, percent) {
   return `rgb(${r},${g},${b})`;
 }
 
+// ─── Planet Stats Panel (comparison chart vs Earth) ─────────
+const planetStatsPanel = document.getElementById("planet-stats");
+const planetStatsBody  = document.getElementById("planet-stats-body");
+const planetStatsVs    = document.getElementById("planet-stats-vs");
+
+// Earth baseline from static data (always available)
+const EARTH_BASELINE = PLANET_STATIC_DATA.earth;
+
+function buildStatsPanel(planet) {
+  if (!planet) { planetStatsPanel.style.display = "none"; return; }
+
+  const earthRadius   = EARTH_BASELINE.meanRadius;          // 6371 km
+  const earthMassV    = EARTH_BASELINE.mass.massValue;       // 5.97
+  const earthMassE    = EARTH_BASELINE.mass.massExponent;    // 24
+  const earthGravity  = EARTH_BASELINE.gravity;              // 9.8
+  const earthTemp     = EARTH_BASELINE.avgTemp;              // 288 K
+  const earthOrbit    = EARTH_BASELINE.sideralOrbit;         // 365.26 days
+  const earthRotation = Math.abs(EARTH_BASELINE.sideralRotation); // 23.93 h
+  const earthMoons    = 1;
+
+  // Calculate ratios (log scale for extreme values)
+  const stats = [
+    {
+      label: "Radius",
+      value: planet.radiusKm ? UNITS.formatNumber(Math.round(planet.radiusKm)) + " km" : "N/A",
+      ratio: planet.radiusKm ? planet.radiusKm / earthRadius : 0,
+      earthRatio: 1,
+      max: 12, // Jupiter ~11x
+      color: planet.color || "#888",
+    },
+    {
+      label: "Mass",
+      value: UNITS.formatMass(planet.massValue, planet.massExponent),
+      ratio: (planet.massValue && planet.massExponent) ? (planet.massValue * Math.pow(10, planet.massExponent)) / (earthMassV * Math.pow(10, earthMassE)) : 0,
+      earthRatio: 1,
+      max: 320, // Jupiter ~318x
+      color: planet.color || "#888",
+      logScale: true,
+    },
+    {
+      label: "Gravity",
+      value: planet.gravity ? planet.gravity + " m/s²" : "N/A",
+      ratio: planet.gravity ? planet.gravity / earthGravity : 0,
+      earthRatio: 1,
+      max: 3, // Jupiter ~2.5x
+      color: planet.color || "#888",
+    },
+    {
+      label: "Temperature",
+      value: planet.tempK ? UNITS.kelvinToCelsius(planet.tempK) + "°C" : "N/A",
+      ratio: planet.tempK ? planet.tempK / earthTemp : 0,
+      earthRatio: 1,
+      max: 2.8, // Venus ~2.56x
+      color: planet.tempK > earthTemp ? "#e06030" : "#4ac8e8",
+    },
+    {
+      label: "Orbital Period",
+      value: UNITS.formatPeriod(planet.orbitalPeriod),
+      ratio: planet.orbitalPeriod ? planet.orbitalPeriod / earthOrbit : 0,
+      earthRatio: 1,
+      max: 180, // Neptune ~165x
+      color: planet.color || "#888",
+      logScale: true,
+    },
+    {
+      label: "Day Length",
+      value: planet.rotationPeriod ? Math.abs(planet.rotationPeriod).toFixed(1) + " h" : "N/A",
+      ratio: planet.rotationPeriod ? Math.abs(planet.rotationPeriod) / earthRotation : 0,
+      earthRatio: 1,
+      max: 250, // Venus ~244x
+      color: planet.color || "#888",
+      logScale: true,
+    },
+    {
+      label: "Moons",
+      value: planet.moonCount !== undefined ? String(planet.moonCount) : "N/A",
+      ratio: planet.moonCount || 0,
+      earthRatio: earthMoons,
+      max: 150,
+      color: planet.color || "#888",
+      logScale: true,
+      discrete: true,
+    },
+  ];
+
+  planetStatsVs.textContent = planet.id === "earth" ? "baseline" : "vs Earth";
+
+  planetStatsBody.innerHTML = stats.map(s => {
+    if (!s.ratio && s.ratio !== 0) return "";
+    // For log scale: use log to compress extreme ranges
+    const useLog = s.logScale && s.max > 10;
+    const pct = useLog
+      ? Math.min(100, (Math.log(s.ratio + 1) / Math.log(s.max + 1)) * 100)
+      : Math.min(100, (s.ratio / s.max) * 100);
+    const earthPct = useLog
+      ? Math.min(100, (Math.log(s.earthRatio + 1) / Math.log(s.max + 1)) * 100)
+      : Math.min(100, (s.earthRatio / s.max) * 100);
+
+    const earthMarker = planet.id === "earth" ? "" :
+      `<span class="stat-bar-earth" style="left:${earthPct}%"></span>`;
+
+    return `<div class="stat-row">
+      <div class="stat-row-top">
+        <span class="stat-label">${s.label}</span>
+        <span class="stat-value">${s.value}</span>
+      </div>
+      <div class="stat-bar-track">
+        <div class="stat-bar-fill" style="width:${pct}%;background:${s.color};opacity:0.7;"></div>
+        ${earthMarker}
+      </div>
+    </div>`;
+  }).join("");
+
+  planetStatsPanel.style.display = "";
+}
+
 // ─── Detail Panel ─────────────────────────
 function openDetailPanel(planet) {
   selectedPlanet = planet.id;
@@ -680,6 +796,10 @@ function openDetailPanel(planet) {
     </div>
   ` : '';
 
+  // Build stats chart panel (top-left)
+  buildStatsPanel(planet);
+
+  // Sidebar: only show position/distance data (physical stats moved to chart)
   const grid = document.getElementById("detail-grid");
   grid.innerHTML = `
     <div class="detail-item" style="border-color: rgba(74,158,255,0.3);">
@@ -690,34 +810,6 @@ function openDetailPanel(planet) {
     <div class="detail-item">
       <span class="detail-item-label">Distance from Sun</span>
       <span class="detail-item-value">${planet.distanceAU || "—"} AU (${UNITS.formatNumber(planet.distanceKm)} km)</span>
-    </div>
-    <div class="detail-item">
-      <span class="detail-item-label">Orbital Period</span>
-      <span class="detail-item-value">${UNITS.formatPeriod(planet.orbitalPeriod)}</span>
-    </div>
-    <div class="detail-item">
-      <span class="detail-item-label">Rotation Period</span>
-      <span class="detail-item-value">${planet.rotationPeriod ? planet.rotationPeriod.toFixed(2) + " hours" : "N/A"}</span>
-    </div>
-    <div class="detail-item">
-      <span class="detail-item-label">Mean Radius</span>
-      <span class="detail-item-value">${planet.radiusKm ? UNITS.formatNumber(planet.radiusKm) + " km" : "N/A"}</span>
-    </div>
-    <div class="detail-item">
-      <span class="detail-item-label">Mass</span>
-      <span class="detail-item-value">${UNITS.formatMass(planet.massValue, planet.massExponent)}</span>
-    </div>
-    <div class="detail-item">
-      <span class="detail-item-label">Avg Temperature</span>
-      <span class="detail-item-value">${planet.tempK ? UNITS.kelvinToCelsius(planet.tempK) + "°C (" + planet.tempK + " K)" : "N/A"}</span>
-    </div>
-    <div class="detail-item">
-      <span class="detail-item-label">Surface Gravity</span>
-      <span class="detail-item-value">${planet.gravity ? planet.gravity + " m/s²" : "N/A"}</span>
-    </div>
-    <div class="detail-item">
-      <span class="detail-item-label">Known Moons</span>
-      <span class="detail-item-value">${planet.moonCount !== undefined ? planet.moonCount + " moon" + (planet.moonCount !== 1 ? "s" : "") : "N/A"}</span>
     </div>
     <div class="detail-item" style="border-color: rgba(255,255,255,0.05);">
       <span class="detail-item-label">Data Source</span>
@@ -732,6 +824,7 @@ function openDetailPanel(planet) {
 
 function closeDetailPanel() {
   detailPanel.classList.remove("open");
+  planetStatsPanel.style.display = "none";
   setTimeout(() => {
     detailPanel.hidden = true;
   }, 400);
